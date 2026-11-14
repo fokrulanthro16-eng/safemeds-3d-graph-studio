@@ -1,0 +1,15 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+.venv/
+env/
+venv/
+
+# Antigravity artifacts
+test_db/
+
+# IMPORTANT: Ensure the persistent Relate database is tracked
+!data/
+!data/safemeds.rl
