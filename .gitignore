@@ -10,6 +10,14 @@ venv/
 # Antigravity artifacts
 test_db/
 
+# Video Pipeline Temp Files
+output/raw_video/
+output/*.webm
+output/*_assembly_*.mp4
+output/*_capture_*.mp4
+output/*.wav
+output/*.aac
+
 # IMPORTANT: Ensure the persistent Relate database is tracked
 !data/
 !data/safemeds.rl

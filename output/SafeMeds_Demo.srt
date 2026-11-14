@@ -1,0 +1,20 @@
+1
+00:00:02,500 --> 00:00:24,480
+Every year, preventable drug, food, and enzyme collisions put millions of patients at risk—because flat medication tables hide multi-hop biological pathways. Meet SafeMeds 3D Graph Studio: a clinical decision engine powered locally by a single-file Relate by Neo4j graph database, with zero cloud latency.
+
+2
+00:00:25,080 --> 00:00:43,920
+Here, a heart patient taking Clopidogrel adds Omeprazole for acid reflux. Relate instantly traverses from medicines to active ingredients and uncovers a silent CYP2C19 enzyme block that neutralizes Clopidogrel's heart protection—and surfaces a safer alternative in real time.
+
+3
+00:00:44,520 --> 00:01:00,020
+With a single click on Apply Safe Swap, SafeMeds updates the regimen, re-queries the embedded Relate store, clears the enzyme collision in 3D, and verifies all pathways are safe—with full one-click undo for side-by-side clinical comparison.
+
+4
+00:01:00,620 --> 00:01:25,720
+Now let's scale to complex polypharmacy: Atorvastatin, Warfarin, Grapefruit Juice, Leafy Greens, and Bleeding Risk. When we ask the local SafeMeds Graph Agent, 'Why do I have muscle pain?', it executes a deterministic Cypher traversal in under nine milliseconds—pinpointing how Grapefruit Juice inhibits CYP3A4 to amplify Statin myopathy, with full Cypher transparency.
+
+5
+00:01:26,320 --> 00:01:47,300
+Beyond alerts, SafeMeds generates a five-slot daily spacing schedule, calculates cumulative organ burden, and protects clinical data with strict read-only Cypher guards. Everything runs out of a portable 176-kilobyte .rl file—bringing deterministic, explainable graph intelligence to bedside safety.
+
