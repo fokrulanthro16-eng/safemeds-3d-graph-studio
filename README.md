@@ -1,9 +1,23 @@
+---
+title: SafeMeds 3D Graph Studio
+emoji: 💊
+colorFrom: blue
+colorTo: cyan
+sdk: gradio
+sdk_version: 5.0.0
+app_file: app.py
+pinned: false
+license: mit
+short_description: 3D drug safety engine powered by Relate by Neo4j.
+---
+
 <div align="center">
 
 # SafeMeds 3D Graph Studio
 ### Living Pharmacological Safety Stage & Multi-Hop Clinical Intelligence
 **Built with Relate by Neo4j for the *"Context, Connected"* Hackathon**
 
+[![Hugging Face Spaces](https://img.shields.io/badge/🤗%20Hugging%20Face-Live%20Demo-blue?style=for-the-badge&logo=huggingface&logoColor=white)](https://huggingface.co/spaces/FOKRUL16/safemeds-3d-graph-studio)
 [![Relate by Neo4j](https://img.shields.io/badge/Relate%20by%20Neo4j-Single--File%20Store-0B3D91?style=for-the-badge&logo=neo4j&logoColor=white)](https://relatedb.ai)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110.0-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Three.js WebGL](https://img.shields.io/badge/Three.js-r128%20WebGL-000000?style=for-the-badge&logo=threedotjs&logoColor=white)](https://threejs.org)

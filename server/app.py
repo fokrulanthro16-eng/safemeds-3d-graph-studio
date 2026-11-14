@@ -11,6 +11,7 @@ import shutil
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
@@ -23,14 +24,20 @@ STATIC_DIR = BASE_DIR / "static"
 
 def get_database_path() -> str:
     """
-    Resolves the Relate database path with serverless / read-only filesystem compatibility.
-    If the working directory is read-only (such as on Vercel serverless / AWS Lambda),
+    Resolves the Relate database path with serverless, container, and read-only filesystem compatibility.
+    If the working directory is read-only (such as on Hugging Face Spaces uid 1000, Vercel serverless, or AWS Lambda),
     safemeds.rl is automatically copied to /tmp/safemeds.rl on first run.
     """
     tmp_path = Path("/tmp") / "safemeds.rl"
     
-    # Check for serverless environment or read-only directory
-    if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    # Check for known serverless/container environment or non-writable directory
+    is_cloud_env = (
+        os.environ.get("VERCEL")
+        or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        or os.environ.get("SPACE_ID")
+        or os.environ.get("SYSTEM") == "spaces"
+    )
+    if is_cloud_env:
         if not tmp_path.exists() and ORIG_DB_PATH.exists():
             try:
                 shutil.copy2(str(ORIG_DB_PATH), str(tmp_path))
@@ -41,7 +48,7 @@ def get_database_path() -> str:
 
     # Local / Docker environment: use ORIG_DB_PATH if writable or present
     if ORIG_DB_PATH.exists():
-        if os.access(str(ORIG_DB_PATH.parent), os.W_OK):
+        if os.access(str(ORIG_DB_PATH.parent), os.W_OK) and os.access(str(ORIG_DB_PATH), os.W_OK):
             return str(ORIG_DB_PATH)
         else:
             # Read-only filesystem detected: copy to /tmp
@@ -67,6 +74,24 @@ app = FastAPI(
     description="Offline-first Medication, Food, and Condition Graph powered by Relate by Neo4j",
     version="1.0.0"
 )
+
+# Enable CORS for cross-origin and iframe embedding
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Hugging Face Space iframe compatibility: explicitly strip restrictive frame-blocking headers
+@app.middleware("http")
+async def add_iframe_headers(request, call_next):
+    response = await call_next(request)
+    if "x-frame-options" in response.headers:
+        del response.headers["x-frame-options"]
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
 
 # Helpers for Relate queries
 def get_db(read_only: bool = True):
