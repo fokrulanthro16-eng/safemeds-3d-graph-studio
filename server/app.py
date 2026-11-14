@@ -69,6 +69,12 @@ class CypherQueryRequest(BaseModel):
     query: str
     params: Optional[Dict[str, Any]] = None
 
+class AgentRequest(BaseModel):
+    message: str
+    active_medicines: List[str] = []
+    foods: List[str] = []
+    conditions: List[str] = []
+
 # 1. HEALTH & METADATA
 @app.get("/api/health")
 def health():
@@ -512,6 +518,203 @@ def run_custom_cypher(req: CypherQueryRequest):
         return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# 7. ZERO-API-KEY LOCAL AGENT QUERY HANDLER
+@app.post("/api/agent")
+def agent_query(req: AgentRequest):
+    msg = req.message.strip()
+    if not msg:
+        raise HTTPException(status_code=400, detail="Query message cannot be empty")
+
+    msg_lower = msg.lower()
+    meds = req.active_medicines
+    foods = req.foods
+    conditions = req.conditions
+
+    t0 = time.perf_counter()
+    conn = get_db(read_only=True)
+    cur = conn.cursor()
+
+    try:
+        # Pre-fetch catalog names for fast entity matching
+        cur.execute("MATCH (m:Medicine) RETURN m.name AS name, m.generic_name AS generic, m.is_brand AS is_brand")
+        all_meds = [dict(r) for r in cur]
+        
+        cur.execute("MATCH (s:Symptom) RETURN s.name AS name, s.description AS description")
+        all_symptoms = [dict(r) for r in cur]
+
+        cur.execute("MATCH (f:Food) RETURN f.name AS name")
+        all_foods = [r["name"] for r in cur]
+
+        # 1. CHECK FOR SAFE SWAP / RESOLUTION REQUEST
+        if any(w in msg_lower for w in ["make this safe", "how do i fix", "how to resolve", "substitute", "safe alternative", "what should i switch", "how can i make", "how to make"]):
+            q_alt = """
+            MATCH (alt:Medicine)-[r:SAFE_ALTERNATIVE_TO]->(tgt:Medicine)
+            WHERE tgt.name IN $meds
+            RETURN alt.name AS alternative, tgt.name AS target, r.reason AS reason, r.target_condition AS condition
+            """
+            cur.execute(q_alt, {"meds": meds})
+            alts = [dict(r) for r in cur]
+            elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+            if alts:
+                alt = alts[0]
+                answer = (
+                    f"SafeMeds recommends switching from **{alt['target']}** to **{alt['alternative']}**. "
+                    f"{alt['reason']} Click 'Apply Safe Swap' in the right panel to automatically update your regimen!"
+                )
+                return {
+                    "answer": answer,
+                    "cypher": q_alt.strip(),
+                    "highlight_nodes": [f"med_{alt['alternative']}", f"med_{alt['target']}"],
+                    "swap_action": {"replace": alt["target"], "with": alt["alternative"]},
+                    "elapsed_ms": elapsed_ms
+                }
+            else:
+                return {
+                    "answer": "Your current regimen does not have an active enzyme or direct conflict requiring an immediate alternative swap. All current pathways are within typical parameters.",
+                    "cypher": q_alt.strip(),
+                    "highlight_nodes": [],
+                    "swap_action": None,
+                    "elapsed_ms": elapsed_ms
+                }
+
+        # 2. CHECK FOR SYMPTOM ADVERSE EFFECT INQUIRY ("Why do I have ...")
+        matched_symptom = None
+        for s in all_symptoms:
+            s_name = s["name"].lower()
+            main_words = [w for w in s_name.replace("/", " ").replace("-", " ").split() if len(w) > 3]
+            if any(w in msg_lower for w in main_words) or s_name in msg_lower:
+                matched_symptom = s["name"]
+                break
+
+        if matched_symptom or any(w in msg_lower for w in ["symptom", "pain", "cough", "swelling", "nausea", "headache", "bleeding"]):
+            target_sym = matched_symptom or ("Muscle Pain / Myopathy" if "muscle" in msg_lower else ("Persistent Dry Cough" if "cough" in msg_lower else "Stomach Pain / Gastritis"))
+            q_sym = """
+            MATCH (s:Symptom {name: $symptom})<-[r:CAN_CAUSE]-(i:Ingredient)<-[:CONTAINS]-(m:Medicine)
+            WHERE m.name IN $meds
+            RETURN s.name AS symptom, m.name AS medicine, i.name AS ingredient, r.frequency AS frequency, r.notes AS mechanism
+            """
+            cur.execute(q_sym, {"symptom": target_sym, "meds": meds})
+            sym_rows = [dict(r) for r in cur]
+            elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+            if sym_rows:
+                c = sym_rows[0]
+                answer = (
+                    f"Adverse Symptom Linked: **{c['symptom']}** is a known {c['frequency']} adverse effect of **{c['medicine']}** (active ingredient: *{c['ingredient']}*). "
+                    f"Pharmacological mechanism: {c['mechanism']}."
+                )
+                if "Atorvastatin" in meds and "Grapefruit Juice" in foods and "Muscle" in target_sym:
+                    answer += " ⚠️ CRITICAL: Concomitant Grapefruit Juice inhibits CYP3A4, multiplying systemic Atorvastatin blood concentrations and dramatically spiking rhabdomyolysis muscle damage risk!"
+                return {
+                    "answer": answer,
+                    "cypher": q_sym.strip(),
+                    "highlight_nodes": [f"med_{c['medicine']}", f"ing_{c['ingredient']}", f"sym_{c['symptom']}"],
+                    "swap_action": None,
+                    "elapsed_ms": elapsed_ms
+                }
+            else:
+                return {
+                    "answer": f"SafeMeds checked '{target_sym}' against your active medications in the Relate graph. None of your currently active drugs directly cause this symptom in their primary profile.",
+                    "cypher": q_sym.strip(),
+                    "highlight_nodes": [],
+                    "swap_action": None,
+                    "elapsed_ms": elapsed_ms
+                }
+
+        # 3. CHECK FOR CANDIDATE MEDICINE INQUIRY ("Can I add / take ...?")
+        candidate_med = None
+        for m in all_meds:
+            if m["name"].lower() in msg_lower or (m["generic"] and m["generic"].lower() in msg_lower):
+                candidate_med = m["name"]
+                break
+
+        if candidate_med:
+            # Check interaction with active meds
+            q_cand_ddi = """
+            MATCH (m1:Medicine)-[:CONTAINS]->(i1:Ingredient)-[r:DIRECT_INTERACTION]-(i2:Ingredient)<-[:CONTAINS]-(m2:Medicine)
+            WHERE m1.name = $cand AND m2.name IN $meds
+            RETURN m1.name AS med1, m2.name AS med2, r.severity AS severity, r.mechanism AS mechanism, r.effect AS effect
+            """
+            cur.execute(q_cand_ddi, {"cand": candidate_med, "meds": meds})
+            ddi_rows = [dict(r) for r in cur]
+
+            q_cand_dd = """
+            MATCH (m1:Medicine)-[:CONTAINS]->(i:Ingredient)<-[:CONTAINS]-(m2:Medicine)
+            WHERE m1.name = $cand AND m2.name IN $meds
+            RETURN m1.name AS med1, m2.name AS med2, i.name AS ingredient
+            """
+            cur.execute(q_cand_dd, {"cand": candidate_med, "meds": meds})
+            dd_rows = [dict(r) for r in cur]
+
+            q_cand_cond = """
+            MATCH (m:Medicine)-[:CONTAINS]->(i:Ingredient)-[r:CONTRAINDICATED_IN]->(c:Condition)
+            WHERE m.name = $cand AND c.name IN $conditions
+            RETURN m.name AS med, c.name AS condition, r.severity AS severity, r.reason AS reason
+            """
+            cur.execute(q_cand_cond, {"cand": candidate_med, "conditions": conditions})
+            cond_rows = [dict(r) for r in cur]
+
+            elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+            if dd_rows:
+                dd = dd_rows[0]
+                answer = f"🚫 ACCIDENTAL OVERDOSE HAZARD: Do not add **{candidate_med}**! It contains the exact same active generic ingredient (*{dd['ingredient']}*) as **{dd['med2']}**, which is already in your regimen."
+                return {
+                    "answer": answer,
+                    "cypher": q_cand_dd.strip(),
+                    "highlight_nodes": [f"med_{candidate_med}", f"med_{dd['med2']}"],
+                    "swap_action": None,
+                    "elapsed_ms": elapsed_ms
+                }
+            elif ddi_rows:
+                ddi = ddi_rows[0]
+                answer = f"⚠️ HIGH RISK INTERACTION: Adding **{candidate_med}** creates a {ddi['severity']} collision with **{ddi['med2']}**. Mechanism: {ddi['mechanism']}. Clinical Effect: {ddi['effect']}."
+                return {
+                    "answer": answer,
+                    "cypher": q_cand_ddi.strip(),
+                    "highlight_nodes": [f"med_{candidate_med}", f"med_{ddi['med2']}"],
+                    "swap_action": None,
+                    "elapsed_ms": elapsed_ms
+                }
+            elif cond_rows:
+                co = cond_rows[0]
+                answer = f"⚠️ CONTRAINDICATION: **{candidate_med}** is contraindicated in your diagnosed condition **{co['condition']}** ({co['severity']} severity). Reason: {co['reason']}."
+                return {
+                    "answer": answer,
+                    "cypher": q_cand_cond.strip(),
+                    "highlight_nodes": [f"med_{candidate_med}", f"cond_{co['condition']}"],
+                    "swap_action": None,
+                    "elapsed_ms": elapsed_ms
+                }
+            else:
+                answer = f"✅ SAFE TO EVALUATE: **{candidate_med}** has no detected direct collisions, double doses, or contraindications with your current selection in the SafeMeds knowledge graph."
+                return {
+                    "answer": answer,
+                    "cypher": q_cand_ddi.strip(),
+                    "highlight_nodes": [f"med_{candidate_med}"],
+                    "swap_action": None,
+                    "elapsed_ms": elapsed_ms
+                }
+
+        # 4. DEFAULT GENERAL QUERY
+        q_gen = "MATCH (m:Medicine) WHERE m.name IN $meds RETURN m.name AS name, m.generic_name AS generic"
+        cur.execute(q_gen, {"meds": meds})
+        active_list = [f"{r['name']} ({r['generic']})" for r in cur]
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+        answer = (
+            f"SafeMeds graph agent is monitoring {len(meds)} active medications: {', '.join(active_list) if active_list else 'none selected'}. "
+            f"Ask about adding a specific medicine (e.g. 'Can I add Ibuprofen?'), investigating an adverse symptom (e.g. 'Why do I have muscle pain?'), or resolving an enzyme conflict."
+        )
+        return {
+            "answer": answer,
+            "cypher": q_gen,
+            "highlight_nodes": [f"med_{m}" for m in meds],
+            "swap_action": None,
+            "elapsed_ms": elapsed_ms
+        }
+
+    finally:
+        conn.close()
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

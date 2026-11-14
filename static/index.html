@@ -56,10 +56,10 @@
     </div>
 
     <!-- RELATE SINGLE FILE DATABASE STORE BADGE -->
-    <div class="relate-store-badge" title="Relate by Neo4j In-Process Single-File Database">
+    <div class="relate-store-badge" title="Relate by Neo4j In-Process Single-File Database (Persistent Store)">
       <span class="live-dot"></span>
       <div class="store-info">
-        <span class="store-engine">Relate Embedded Database</span>
+        <span class="store-engine">RELATE SINGLE-FILE STORE</span>
         <span class="store-filename" id="dbPathDisplay">./data/safemeds.rl</span>
       </div>
     </div>
@@ -128,7 +128,7 @@
               <span class="tracer-subtitle">"Why am I feeling this?"</span>
             </div>
           </div>
-          <p class="tracer-description">Traverses backwards along <code>(:Symptom)&larr;[:CAN_CAUSE]&ndash;(:Ingredient)&larr;[:CONTAINS]&ndash;(:Medicine)</code> to isolate culprit drugs.</p>
+          <p class="tracer-description">Pick a new symptom to see which active medicine may be causing it.</p>
           
           <div class="tracer-action-row">
             <select id="symptomSelect" class="custom-select symptom-input">
@@ -181,6 +181,42 @@
         <p>No enzyme blocks, double-dose overlaps, or food chelation conflicts detected among selected items.</p>
       </div>
 
+      <!-- FLOATING FROSTED-GLASS "ASK SAFEMEDS AGENT" COMMAND BAR -->
+      <div class="agent-command-container">
+        <!-- AGENT RESPONSE POPUP (FLOATING ABOVE INPUT) -->
+        <div id="agentResponsePopup" class="agent-response-popup" style="display: none;">
+          <div class="agent-response-header">
+            <div class="agent-badge">
+              <span class="agent-sparkle">✨</span> SafeMeds Graph Agent
+            </div>
+            <div class="agent-cypher-chip" id="agentCypherChip">Cypher: 4.8ms</div>
+            <button class="btn-close-popup" onclick="closeAgentResponse()">&times;</button>
+          </div>
+          <div class="agent-response-body" id="agentResponseBody"></div>
+          <div class="agent-response-footer" id="agentResponseFooter" style="display: none;">
+            <button class="btn-apply-action" id="btnAgentApplyAction">⚡ Apply Recommended Swap</button>
+          </div>
+          <details class="agent-cypher-details">
+            <summary>Inspect Executed Cypher Query</summary>
+            <pre class="agent-cypher-code" id="agentCypherCode"></pre>
+          </details>
+        </div>
+
+        <!-- FLOATING COMMAND INPUT & QUICK CHIPS -->
+        <div class="agent-command-bar">
+          <div class="agent-chips-row">
+            <button class="agent-prompt-chip" onclick="askAgentPrompt('Can I add Ibuprofen?')">💊 Can I add Ibuprofen?</button>
+            <button class="agent-prompt-chip" onclick="askAgentPrompt('Why do I have muscle pain?')">🩺 Why do I have muscle pain?</button>
+            <button class="agent-prompt-chip" onclick="askAgentPrompt('How do I make this safe?')">🛡️ How do I make this safe?</button>
+          </div>
+          <form class="agent-input-form" onsubmit="handleAgentSubmit(event)">
+            <span class="agent-input-icon">✨</span>
+            <input type="text" id="agentCommandInput" class="agent-input" placeholder="Ask SafeMeds Agent (e.g. 'Can I take Advil with this regimen?')..." autocomplete="off">
+            <button type="submit" class="agent-submit-btn" id="btnAgentSubmit">Ask</button>
+          </form>
+        </div>
+      </div>
+
     </section>
 
     <!-- RIGHT PANEL: CLINICAL CARDS, 5-SLOT TIMETABLE, ORGAN LOAD & CYPHER -->
@@ -197,6 +233,18 @@
       <!-- TAB 1: RISKS & SWAPS -->
       <div id="tabPaneClinical" class="tab-pane active">
         
+        <!-- CONFLICT RESOLVED / CELEBRATION BANNER WITH UNDO TOGGLE -->
+        <div id="swapSuccessBanner" class="swap-success-banner" style="display: none;">
+          <div class="swap-banner-content">
+            <div class="swap-banner-icon">✅</div>
+            <div>
+              <div class="swap-banner-title">Regimen Safe &bull; Conflict Resolved</div>
+              <div class="swap-banner-subtext" id="swapSuccessText">Successfully replaced Omeprazole with Pantoprazole.</div>
+            </div>
+          </div>
+          <button class="btn-undo-swap" id="btnUndoSwap" onclick="undoSafeSwap()">↩️ Undo Swap</button>
+        </div>
+
         <!-- BRIGHT YELLOW KEY ACTION BANNER ("ONE FACT TO REMEMBER") -->
         <div class="key-action-banner" id="keyActionBanner">
           <div class="action-tagline">

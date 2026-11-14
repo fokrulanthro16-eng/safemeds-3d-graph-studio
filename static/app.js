@@ -1,6 +1,7 @@
 // ==========================================================================
-// SafeMeds — 3D Pharmaceutical Interactive Studio (Three.js)
+// SafeMeds — Studio-Grade 3D Pharmaceutical Interactive Dashboard (Three.js)
 // Sky-Blue, Deep Royal Blue, Crisp White & Bright Yellow Visual Experience
+// Connected to In-Process Persistent Relate by Neo4j Database (./data/safemeds.rl)
 // ==========================================================================
 
 import * as THREE from 'three';
@@ -14,15 +15,23 @@ let selectedConditions = new Set();
 let activeTraceResult = null;
 let currentAnalysisData = null;
 let activePresetId = 'preset_1';
+let previousRegimenState = null;
 
 // Three.js Scene Variables
 let scene, camera, renderer, controls;
-let threeObjects = []; // 3D node meshes
+let threeObjects = []; // 3D node meshes & metadata
 let pathwayTubes = []; // 3D pathway curves
 let energyPulses = []; // Animated energy spheres
 let lightRibbons = []; // Background drifting ribbons
 let canvasContainer = null;
 let raycaster, mouse;
+
+// Camera Animation State
+let cameraTargetPos = null;
+let controlsTargetPos = null;
+let currentAutoFrameZ = 19.5;
+let currentHighlightedNode = null;
+let lastAgentSwapAction = null;
 
 // Initialize on DOM Ready
 document.addEventListener('DOMContentLoaded', async () => {
@@ -52,9 +61,9 @@ function initThreeStage() {
   // Scene
   scene = new THREE.Scene();
 
-  // Camera
+  // Camera with auto-frame Z
   camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-  camera.position.set(0, 0, 19.5);
+  camera.position.set(0, 0, currentAutoFrameZ);
 
   // Renderer
   renderer = new THREE.WebGLRenderer({
@@ -73,22 +82,22 @@ function initThreeStage() {
   controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
-  controls.maxDistance = 34;
-  controls.minDistance = 6;
-  controls.maxPolarAngle = Math.PI * 0.85;
-  controls.minPolarAngle = Math.PI * 0.15;
+  controls.maxDistance = 38;
+  controls.minDistance = 5;
+  controls.maxPolarAngle = Math.PI * 0.88;
+  controls.minPolarAngle = Math.PI * 0.12;
   controls.target.set(0, 0, 0);
 
   // 3-Point Studio Lighting
   const hemiLight = new THREE.HemisphereLight(0xFFFFFF, 0x0B3D91, 0.95);
   scene.add(hemiLight);
 
-  const keyLight = new THREE.DirectionalLight(0xFFFFFF, 1.45);
-  keyLight.position.set(9, 13, 11);
+  const keyLight = new THREE.DirectionalLight(0xFFFFFF, 1.5);
+  keyLight.position.set(9, 14, 12);
   scene.add(keyLight);
 
-  const rimLight = new THREE.DirectionalLight(0x38BDF8, 1.1);
-  rimLight.position.set(-11, -6, -9);
+  const rimLight = new THREE.DirectionalLight(0x38BDF8, 1.15);
+  rimLight.position.set(-12, -6, -10);
   scene.add(rimLight);
 
   const fillLight = new THREE.DirectionalLight(0xFDE047, 0.35);
@@ -116,28 +125,21 @@ function onWindowResize() {
   renderer.setSize(width, height);
 }
 
-function resetCameraView() {
-  if (!controls || !camera) return;
-  camera.position.set(0, 0, 19.5);
-  controls.target.set(0, 0, 0);
-  controls.update();
-}
-
 // Sweeping Translucent Background Light Streams
 function createLightStreamRibbons() {
   const ribbonColors = [0x38BDF8, 0xBAE6FD, 0x0284C7];
   for (let i = 0; i < 3; i++) {
     const points = [];
     const baseY = (i - 1) * 4;
-    for (let x = -14; x <= 14; x += 3.5) {
+    for (let x = -15; x <= 15; x += 3.5) {
       points.push(new THREE.Vector3(
         x,
         baseY + Math.sin(x * 0.35 + i) * 2.2,
-        -4.5 - i * 0.8
+        -4.8 - i * 0.8
       ));
     }
     const curve = new THREE.CatmullRomCurve3(points);
-    const geom = new THREE.TubeGeometry(curve, 64, 0.06, 8, false);
+    const geom = new THREE.TubeGeometry(curve, 64, 0.055, 8, false);
     const mat = new THREE.MeshBasicMaterial({
       color: ribbonColors[i % ribbonColors.length],
       transparent: true,
@@ -151,33 +153,33 @@ function createLightStreamRibbons() {
 }
 
 // ==========================================================================
-// 2. PROCEDURAL 3D PHARMACEUTICAL MODELS (MeshPhysicalMaterial)
+// 2. PROCEDURAL 3D PHARMACEUTICAL MODELS (Studio Physical Materials)
 // ==========================================================================
 
-// A. 3D Medicine Capsule (Upper Pharma Blue, Lower Pearl White)
+// A. 3D Medicine Capsule (Upper Pharma Blue, Lower Pearl White, Metallic Seam)
 function createMedicineCapsule(name, isBrand) {
   const group = new THREE.Group();
 
   const blueMat = new THREE.MeshPhysicalMaterial({
     color: 0x0284C7,
-    roughness: 0.15,
+    roughness: 0.12,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.1,
+    clearcoatRoughness: 0.08,
     metalness: 0.05
   });
 
   const whiteMat = new THREE.MeshPhysicalMaterial({
     color: 0xFFFFFF,
-    roughness: 0.15,
+    roughness: 0.12,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.1,
+    clearcoatRoughness: 0.08,
     metalness: 0.05
   });
 
   const ringMat = new THREE.MeshStandardMaterial({
     color: 0xBAE6FD,
-    metalness: 0.6,
-    roughness: 0.3
+    metalness: 0.8,
+    roughness: 0.2
   });
 
   const radius = 0.38;
@@ -202,7 +204,7 @@ function createMedicineCapsule(name, isBrand) {
   group.add(botDome);
 
   // Central Seal Ring
-  const ring = new THREE.Mesh(new THREE.CylinderGeometry(radius + 0.012, radius + 0.012, 0.04, 32), ringMat);
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(radius + 0.015, radius + 0.015, 0.045, 32), ringMat);
   group.add(ring);
 
   group.rotation.z = 0.38;
@@ -212,23 +214,29 @@ function createMedicineCapsule(name, isBrand) {
   return group;
 }
 
-// B. 3D Dietary Amber Dropper Bottle
+// B. 3D Dietary Amber Dropper Bottle with Liquid Core
 function createFoodDropper(name) {
   const group = new THREE.Group();
 
   const amberGlassMat = new THREE.MeshPhysicalMaterial({
     color: 0xD97706,
-    roughness: 0.12,
+    roughness: 0.1,
     clearcoat: 1.0,
-    transmission: 0.55,
+    transmission: 0.65,
     transparent: true,
     opacity: 0.88
+  });
+
+  const liquidMat = new THREE.MeshStandardMaterial({
+    color: 0xF59E0B,
+    roughness: 0.2
   });
 
   const capMat = new THREE.MeshPhysicalMaterial({
     color: 0xFFFFFF,
     roughness: 0.2,
-    clearcoat: 0.8
+    clearcoat: 0.9,
+    metalness: 0.1
   });
 
   const rubberMat = new THREE.MeshStandardMaterial({
@@ -237,22 +245,27 @@ function createFoodDropper(name) {
   });
 
   // Bottle Body
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 0.85, 24), amberGlassMat);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 0.82, 24), amberGlassMat);
   group.add(body);
+
+  // Inner Liquid Core
+  const liquid = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 0.68, 20), liquidMat);
+  liquid.position.y = -0.05;
+  group.add(liquid);
 
   // Neck
   const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.28, 24), amberGlassMat);
-  neck.position.y = 0.54;
+  neck.position.y = 0.52;
   group.add(neck);
 
   // Cap
   const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.2, 24), capMat);
-  cap.position.y = 0.74;
+  cap.position.y = 0.72;
   group.add(cap);
 
   // Rubber bulb
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), rubberMat);
-  bulb.position.y = 0.92;
+  bulb.position.y = 0.90;
   group.add(bulb);
 
   group.rotation.x = 0.15;
@@ -260,48 +273,51 @@ function createFoodDropper(name) {
   return group;
 }
 
-// C. 3D Condition Hexagonal Prism
-function createConditionPrism(name) {
+// C. 3D Condition Sculpted Cobalt-Indigo Medical Shield
+function createConditionShield(name) {
   const group = new THREE.Group();
 
-  const prismMat = new THREE.MeshPhysicalMaterial({
+  const shieldMat = new THREE.MeshPhysicalMaterial({
     color: 0x4338CA,
-    roughness: 0.18,
+    roughness: 0.15,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.1
+    clearcoatRoughness: 0.1,
+    metalness: 0.15
   });
 
   const coreMat = new THREE.MeshBasicMaterial({
-    color: 0x818CF8,
+    color: 0xA5B4FC,
     wireframe: true
   });
 
-  const hexPrism = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.55, 6), prismMat);
-  group.add(hexPrism);
+  // Octahedron medical shield geometry
+  const shield = new THREE.Mesh(new THREE.OctahedronGeometry(0.52, 0), shieldMat);
+  shield.scale.set(0.9, 1.15, 0.7);
+  group.add(shield);
 
-  const innerCore = new THREE.Mesh(new THREE.IcosahedronGeometry(0.28, 0), coreMat);
+  const innerCore = new THREE.Mesh(new THREE.IcosahedronGeometry(0.24, 0), coreMat);
   group.add(innerCore);
 
-  group.rotation.x = 0.25;
-  group.rotation.y = 0.35;
-  group.userData = { title: name, category: 'Health Condition', type: 'Condition' };
+  group.rotation.x = 0.18;
+  group.rotation.y = 0.25;
+  group.userData = { title: name, category: 'Health Condition', type: 'Condition', innerCore: innerCore };
   return group;
 }
 
-// D. 3D Active Molecule Cluster (Pearl-Cyan Core with 3 Bonded Orbiting Spheres)
+// D. 3D Active Molecule Cluster (Pearl-Cyan Core with Orbiting Electron Spheres)
 function createMolecularCluster(name) {
   const group = new THREE.Group();
 
   const coreMat = new THREE.MeshPhysicalMaterial({
     color: 0x38BDF8,
-    roughness: 0.1,
+    roughness: 0.08,
     clearcoat: 1.0,
     clearcoatRoughness: 0.08
   });
 
   const atomMat = new THREE.MeshPhysicalMaterial({
     color: 0xFFFFFF,
-    roughness: 0.15,
+    roughness: 0.12,
     clearcoat: 0.9
   });
 
@@ -339,36 +355,57 @@ function createMolecularCluster(name) {
   return group;
 }
 
-// E. 3D Crystalline Conflict Point with Halo Ring
+// E. 3D Crystalline Conflict Point with Dual Counter-Rotating Gyro Warning Rings
 function createConflictCrystal(title, isAmber) {
   const group = new THREE.Group();
-
   const colorHex = isAmber ? 0xFACC15 : 0xEF4444;
 
   const crystalMat = new THREE.MeshPhysicalMaterial({
     color: colorHex,
-    roughness: 0.1,
+    roughness: 0.08,
     clearcoat: 1.0,
+    clearcoatRoughness: 0.08,
     emissive: colorHex,
-    emissiveIntensity: 0.45
+    emissiveIntensity: 0.45,
+    flatShading: true
   });
 
-  const haloMat = new THREE.MeshStandardMaterial({
+  const gyroMat1 = new THREE.MeshStandardMaterial({
     color: colorHex,
     emissive: colorHex,
-    emissiveIntensity: 0.65,
-    roughness: 0.3
+    emissiveIntensity: 0.7,
+    roughness: 0.25
   });
 
-  const crystal = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5, 0), crystalMat);
+  const gyroMat2 = new THREE.MeshStandardMaterial({
+    color: isAmber ? 0xFDE047 : 0xFCA5A5,
+    emissive: colorHex,
+    emissiveIntensity: 0.5,
+    roughness: 0.25
+  });
+
+  // Faceted Crystalline Core
+  const crystal = new THREE.Mesh(new THREE.IcosahedronGeometry(0.52, 0), crystalMat);
   group.add(crystal);
 
-  // Rotating Warning Ring
-  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.045, 16, 48), haloMat);
-  halo.rotation.x = Math.PI / 2.5;
-  group.add(halo);
+  // Dual Counter-Rotating Gyro Warning Rings
+  const outerGyro = new THREE.Mesh(new THREE.TorusGeometry(0.88, 0.035, 16, 48), gyroMat1);
+  outerGyro.rotation.x = Math.PI * 0.2; // ~36 deg
+  group.add(outerGyro);
 
-  group.userData = { title: title, category: isAmber ? 'Time-Spacing Gap' : 'Clinical Collision', type: 'Conflict', halo: halo };
+  const innerGyro = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.03, 16, 48), gyroMat2);
+  innerGyro.rotation.x = -Math.PI * 0.2; // ~-36 deg
+  group.add(innerGyro);
+
+  group.userData = {
+    title: title,
+    category: isAmber ? 'Time-Spacing Gap' : 'Clinical Collision',
+    type: 'Conflict',
+    crystal: crystal,
+    outerGyro: outerGyro,
+    innerGyro: innerGyro,
+    isAmber: isAmber
+  };
   return group;
 }
 
@@ -429,7 +466,7 @@ function createSafeAlternativeCapsule(name) {
 }
 
 // ==========================================================================
-// 3. ZERO-HAIRBALL 4-LANE 3D ARCHITECTURE
+// 3. ZERO-HAIRBALL 4-LANE 3D ARCHITECTURE (AUTO-FRAMED)
 // ==========================================================================
 function clearThreeStage() {
   threeObjects.forEach(obj => scene.remove(obj.mesh));
@@ -461,40 +498,84 @@ function renderThreeStage(data) {
   const col1Nodes = nonOrganNodes.filter(n => ['Medicine', 'Food', 'Condition'].includes(n.label) && !n.extra?.is_alt);
   const col2Nodes = nonOrganNodes.filter(n => n.label === 'Ingredient');
 
-  // Conflict points
+  // Distinguish true severe conflicts vs. time-spacing gaps
   const col3Items = [];
+  const addedTitles = new Set();
+
   const enzymeNodes = nonOrganNodes.filter(n => n.label === 'Enzyme');
-  enzymeNodes.forEach(e => col3Items.push({ title: `${e.title} Blocked`, isAmber: false, type: 'Enzyme' }));
-  (data.brand_overlaps || []).forEach(bo => col3Items.push({ title: 'Double Dose Overdose', isAmber: false, type: 'BrandOverlap', sub: bo.ingredient }));
+  enzymeNodes.forEach(e => {
+    const t = `${e.title} Blocked`;
+    if (!addedTitles.has(t)) {
+      addedTitles.add(t);
+      col3Items.push({ title: t, isAmber: false, type: 'Enzyme', severity: 'Severe' });
+    }
+  });
+
+  (data.brand_overlaps || []).forEach(bo => {
+    const t = 'Double Dose Overdose';
+    if (!addedTitles.has(t)) {
+      addedTitles.add(t);
+      col3Items.push({ title: t, isAmber: false, type: 'BrandOverlap', sub: bo.ingredient, severity: 'Severe' });
+    }
+  });
+
   (data.warnings || []).forEach(w => {
-    if (w.type.includes('Food') || w.type.includes('Timing')) {
-      col3Items.push({ title: '3h Food/Drug Gap', isAmber: true, type: 'TimingGap' });
+    const isSevere = w.severity === 'Severe' || w.severity === 'High';
+    const isTiming = (w.type.includes('Timing') || w.details?.includes('spacing') || w.details?.includes('gap')) && !isSevere;
+
+    if (w.type.includes('Enzyme Collision')) {
+      // Handled above
+    } else if (isTiming) {
+      const t = '3h Food/Drug Gap';
+      if (!addedTitles.has(t)) {
+        addedTitles.add(t);
+        col3Items.push({ title: t, isAmber: true, type: 'TimingGap', severity: 'Time-Spacing' });
+      }
+    } else {
+      let shortTitle = 'Severe Interaction';
+      if (w.title.includes('Grapefruit')) shortTitle = 'CYP3A4 Toxicity / Avoid';
+      else if (w.title.includes('Spinach') || w.title.includes('Warfarin')) shortTitle = 'Vitamin K Antagonism';
+      else if (w.type.includes('Contraindication')) shortTitle = 'Contraindicated Risk';
+      else if (w.title) shortTitle = w.title.length > 24 ? w.title.substring(0, 22) + '...' : w.title;
+
+      if (!addedTitles.has(shortTitle)) {
+        addedTitles.add(shortTitle);
+        col3Items.push({ title: shortTitle, isAmber: false, type: 'SevereConflict', severity: 'Severe' });
+      }
     }
   });
 
   const col4Alts = data.safe_alternatives || [];
 
-  // If no items
+  // Check if items present
   if (col1Nodes.length === 0 && col2Nodes.length === 0) {
     if (notice) notice.style.display = 'none';
     return;
   }
 
-  // All clear check
+  // All clear notice
   if (col3Items.length === 0 && col4Alts.length === 0 && col1Nodes.length > 0) {
     if (notice) notice.style.display = 'block';
   } else {
     if (notice) notice.style.display = 'none';
   }
 
+  // DYNAMIC CAMERA AUTO-FRAMING: Compute max nodes and dynamic Z
+  const maxNodesInCol = Math.max(col1Nodes.length, col2Nodes.length, col3Items.length, col4Alts.length, 1);
+  currentAutoFrameZ = Math.max(19.5, 14.0 + maxNodesInCol * 1.6);
+  
+  // Smoothly position camera overview
+  cameraTargetPos = new THREE.Vector3(0, 0, currentAutoFrameZ);
+  controlsTargetPos = new THREE.Vector3(0, 0, 0);
+
   // 1. Position Column 1: Intake (X = -7.5)
   col1Nodes.forEach((node, i) => {
     let mesh;
     if (node.label === 'Medicine') mesh = createMedicineCapsule(node.title, node.category?.includes('Brand'));
     else if (node.label === 'Food') mesh = createFoodDropper(node.title);
-    else mesh = createConditionPrism(node.title);
+    else mesh = createConditionShield(node.title);
 
-    const y = calculateYPosition(i, col1Nodes.length);
+    const y = calculateYPosition(i, col1Nodes.length, maxNodesInCol);
     mesh.position.set(-7.5, y, Math.sin(i) * 0.4);
     scene.add(mesh);
     registerThreeNode(mesh, node.title, node.label, 1);
@@ -503,7 +584,7 @@ function renderThreeStage(data) {
   // 2. Position Column 2: Ingredients (X = -2.5)
   col2Nodes.forEach((node, i) => {
     const mesh = createMolecularCluster(node.title);
-    const y = calculateYPosition(i, col2Nodes.length);
+    const y = calculateYPosition(i, col2Nodes.length, maxNodesInCol);
     mesh.position.set(-2.5, y, Math.cos(i) * 0.4);
     scene.add(mesh);
     registerThreeNode(mesh, node.title, 'Ingredient', 2);
@@ -512,7 +593,7 @@ function renderThreeStage(data) {
   // 3. Position Column 3: Conflicts / Enzyme Blocks (X = +2.5)
   col3Items.forEach((item, i) => {
     const mesh = createConflictCrystal(item.title, item.isAmber);
-    const y = calculateYPosition(i, col3Items.length);
+    const y = calculateYPosition(i, col3Items.length, maxNodesInCol);
     mesh.position.set(2.5, y, Math.sin(i + 1) * 0.4);
     scene.add(mesh);
     registerThreeNode(mesh, item.title, item.isAmber ? 'Time-Spacing' : 'Conflict', 3);
@@ -521,41 +602,42 @@ function renderThreeStage(data) {
   // 4. Position Column 4: Safe Alternatives (X = +7.5)
   col4Alts.forEach((alt, i) => {
     const mesh = createSafeAlternativeCapsule(alt.alternative);
-    const y = calculateYPosition(i, col4Alts.length);
+    const y = calculateYPosition(i, col4Alts.length, maxNodesInCol);
     mesh.position.set(7.5, y, Math.cos(i + 2) * 0.4);
     scene.add(mesh);
     registerThreeNode(mesh, alt.alternative, 'Safe Alternative', 4);
   });
 
-  // Build Glowing Curved 3D Pathways & Energy Pulses
+  // Build Glowing Curved 3D Pathways with Arc Offsets
   buildPathwayTubes(data, col3Items, col4Alts);
 }
 
-function calculateYPosition(index, total) {
+function calculateYPosition(index, total, maxNodesInCol) {
   if (total <= 1) return 0;
-  const spacing = Math.min(2.2, 7.0 / (total - 1));
+  const spacing = Math.min(2.0, 7.2 / Math.max(1, maxNodesInCol - 1));
   return ((total - 1) / 2 - index) * spacing;
 }
 
 function registerThreeNode(mesh, title, category, colIndex) {
-  // Create 2D Projected HTML Label
   const overlay = document.getElementById('labelsOverlay');
   const labelDiv = document.createElement('div');
   labelDiv.className = 'node-projected-label';
-  
+
   let tagClass = 'tag-med';
-  if (category === 'Ingredient') tagClass = 'tag-ing';
-  else if (category === 'Conflict') tagClass = 'tag-conf';
-  else if (category === 'Time-Spacing') tagClass = 'tag-amber';
-  else if (category === 'Safe Alternative') tagClass = 'tag-safe';
+  let tagDisplay = category;
+  if (category === 'Ingredient') { tagClass = 'tag-ing'; tagDisplay = 'Molecule'; }
+  else if (category === 'Conflict') { tagClass = 'tag-conf'; tagDisplay = 'Severe Block'; }
+  else if (category === 'Time-Spacing') { tagClass = 'tag-amber'; tagDisplay = '3h Time Gap'; }
+  else if (category === 'Safe Alternative') { tagClass = 'tag-safe'; tagDisplay = 'Safe Swap'; }
 
   labelDiv.innerHTML = `
-    <span class="label-category-tag ${tagClass}">${category}</span>
+    <span class="label-category-tag ${tagClass}">${tagDisplay}</span>
     <div class="label-title-text">${title}</div>
   `;
 
-  labelDiv.onclick = () => {
-    highlightNodeInteractions(title);
+  labelDiv.onclick = (e) => {
+    e.stopPropagation();
+    focusOnNode(title);
   };
 
   overlay.appendChild(labelDiv);
@@ -569,25 +651,31 @@ function registerThreeNode(mesh, title, category, colIndex) {
   });
 }
 
-// 4. GLOWING 3D CURVED TUBES & ANIMATED MOVING ENERGY BEADS
+// 4. GLOWING 3D CURVED TUBES (ARC AROUND MOLECULES)
 function buildPathwayTubes(data, col3Items, col4Alts) {
+  let tubeIdx = 0;
+
   function addTubeConnection(srcObj, tgtObj, colorHex) {
     if (!srcObj || !tgtObj) return;
 
     const p1 = srcObj.mesh.position.clone();
     const p2 = tgtObj.mesh.position.clone();
 
-    // Arch outward in Z
+    // Arc outward in Z and subtle Y offset so tubes never cut through intermediate nodes
     const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-    mid.z += 1.1;
+    mid.z += 1.25 + Math.sin(tubeIdx * 0.8) * 0.35;
+    mid.y += (p2.y >= p1.y ? -0.28 : 0.28);
+    tubeIdx++;
 
     const curve = new THREE.CatmullRomCurve3([p1, mid, p2]);
-    const tubeGeom = new THREE.TubeGeometry(curve, 36, 0.045, 8, false);
+    const tubeGeom = new THREE.TubeGeometry(curve, 40, 0.045, 8, false);
     const tubeMat = new THREE.MeshStandardMaterial({
       color: colorHex,
       emissive: colorHex,
       emissiveIntensity: 0.55,
-      roughness: 0.3
+      roughness: 0.28,
+      transparent: true,
+      opacity: 1.0
     });
 
     const tubeMesh = new THREE.Mesh(tubeGeom, tubeMat);
@@ -601,12 +689,12 @@ function buildPathwayTubes(data, col3Items, col4Alts) {
     energyPulses.push({ mesh: pulseMesh, curve: curve, t: Math.random(), speed: 0.007 + Math.random() * 0.004 });
   }
 
-  // Connect Col 1 (Intake) -> Col 2 (Ingredient)
   const col1 = threeObjects.filter(o => o.colIndex === 1);
   const col2 = threeObjects.filter(o => o.colIndex === 2);
   const col3 = threeObjects.filter(o => o.colIndex === 3);
   const col4 = threeObjects.filter(o => o.colIndex === 4);
 
+  // Connect Col 1 (Intake) -> Col 2 (Ingredient)
   col1.forEach(c1 => {
     col2.forEach(c2 => {
       if (c1.title.includes(c2.title) || c2.title.includes(c1.title) || isPharmacologicalPair(c1.title, c2.title)) {
@@ -618,7 +706,7 @@ function buildPathwayTubes(data, col3Items, col4Alts) {
   // Connect Col 2 (Ingredient) -> Col 3 (Conflict)
   col2.forEach(c2 => {
     col3.forEach(c3 => {
-      const color = c3.category === 'Time-Spacing' ? 0xFDE047 : 0xEF4444; // Yellow or Red
+      const color = c3.category === 'Time-Spacing' ? 0xFACC15 : 0xEF4444; // Yellow or Crimson Red
       addTubeConnection(c2, c3, color);
     });
   });
@@ -643,12 +731,24 @@ function isPharmacologicalPair(med, ing) {
 }
 
 // ==========================================================================
-// 5. ANIMATION LOOP & PROJECTION
+// 5. ANIMATION LOOP, CAMERA LERP & PROJECTION
 // ==========================================================================
 function animateStage() {
   requestAnimationFrame(animateStage);
 
   const time = performance.now() * 0.001;
+
+  // Smooth camera fly-to lerp
+  if (cameraTargetPos && controlsTargetPos) {
+    camera.position.lerp(cameraTargetPos, 0.08);
+    controls.target.lerp(controlsTargetPos, 0.08);
+    if (camera.position.distanceTo(cameraTargetPos) < 0.04 && controls.target.distanceTo(controlsTargetPos) < 0.04) {
+      camera.position.copy(cameraTargetPos);
+      controls.target.copy(controlsTargetPos);
+      cameraTargetPos = null;
+      controlsTargetPos = null;
+    }
+  }
 
   // Orbit controls update
   controls.update();
@@ -658,15 +758,23 @@ function animateStage() {
     const mesh = obj.mesh;
     mesh.position.y += Math.sin(time * 2 + idx) * 0.0015;
 
-    // Specific rotations
+    // Molecular electron orbits
     if (mesh.userData.orbit) {
       mesh.userData.orbit.rotation.z += 0.015;
     }
-    if (mesh.userData.halo) {
-      mesh.userData.halo.rotation.z += 0.02;
+    // Dual Counter-Rotating Gyro Rings on Conflict Point
+    if (mesh.userData.outerGyro && mesh.userData.innerGyro) {
+      mesh.userData.outerGyro.rotation.z += 0.022;
+      mesh.userData.innerGyro.rotation.z -= 0.028;
+      if (mesh.userData.crystal) mesh.userData.crystal.rotation.y += 0.012;
     }
+    // Safe alternative glowing halo ring
     if (mesh.userData.safetyRing) {
       mesh.userData.safetyRing.rotation.z += 0.018;
+    }
+    // Condition shield inner core pulse
+    if (mesh.userData.innerCore) {
+      mesh.userData.innerCore.rotation.y += 0.02;
     }
   });
 
@@ -715,6 +823,11 @@ function updateProjectedLabels() {
 }
 
 function onCanvasClick(event) {
+  // If clicked inside agent command bar or other overlays, ignore
+  if (event.target.closest('.agent-command-container') || event.target.closest('.floating-stage-controls') || event.target.closest('.node-projected-label')) {
+    return;
+  }
+
   const rect = canvasContainer.getBoundingClientRect();
   mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -730,24 +843,103 @@ function onCanvasClick(event) {
     }
     const matched = threeObjects.find(o => o.mesh === topParent);
     if (matched) {
-      highlightNodeInteractions(matched.title);
+      focusOnNode(matched.title);
     }
+  } else {
+    // Clicked empty background: reset view and restore full brightness
+    resetCameraView();
   }
 }
 
-function highlightNodeInteractions(nodeTitle) {
+// Focus on Node with Smooth Camera Fly-To & 22% Opacity Dimming on Unrelated Nodes
+function focusOnNode(nodeTitle) {
+  const targetObj = threeObjects.find(o => 
+    o.title.toLowerCase() === nodeTitle.toLowerCase() ||
+    nodeTitle.toLowerCase().includes(o.title.toLowerCase())
+  );
+  if (!targetObj) return;
+
+  currentHighlightedNode = targetObj.title;
+
+  // Smoothly fly camera to node
+  const pos = targetObj.mesh.position;
+  cameraTargetPos = new THREE.Vector3(pos.x, pos.y, pos.z + 5.5);
+  controlsTargetPos = pos.clone();
+
+  // Find connected nodes
+  const connectedTitles = new Set([targetObj.title]);
+  pathwayTubes.forEach(t => {
+    if (t.src.title === targetObj.title) connectedTitles.add(t.tgt.title);
+    if (t.tgt.title === targetObj.title) connectedTitles.add(t.src.title);
+  });
+
+  // If focusing on a conflict, also connect its source medicines
+  if (targetObj.category.includes('Conflict') || targetObj.category.includes('Time-Spacing')) {
+    pathwayTubes.forEach(t => {
+      if (connectedTitles.has(t.tgt.title)) connectedTitles.add(t.src.title);
+    });
+  }
+
+  // Apply Dimming: unrelated nodes dim to 22% opacity
+  threeObjects.forEach(obj => {
+    const isFocused = connectedTitles.has(obj.title);
+    setObjectOpacity(obj.mesh, isFocused ? 1.0 : 0.22);
+    if (obj.labelEl) {
+      if (isFocused) {
+        obj.labelEl.classList.remove('dimmed');
+        obj.labelEl.classList.add('focused');
+      } else {
+        obj.labelEl.classList.remove('focused');
+        obj.labelEl.classList.add('dimmed');
+      }
+    }
+  });
+
+  pathwayTubes.forEach(t => {
+    const isConnected = connectedTitles.has(t.src.title) && connectedTitles.has(t.tgt.title);
+    t.mesh.material.opacity = isConnected ? 1.0 : 0.18;
+  });
+
   // Switch to clinical risks tab and highlight corresponding warning card
   switchRightTab('clinical');
-  const alertCards = document.querySelectorAll('.alert-card-item');
+  const alertCards = document.querySelectorAll('.alert-card-item, .safe-card-item');
   alertCards.forEach(c => {
     if (c.textContent.toLowerCase().includes(nodeTitle.toLowerCase())) {
-      c.style.transform = 'scale(1.03)';
+      c.style.transform = 'scale(1.02)';
       c.style.boxShadow = '0 0 16px rgba(2, 132, 199, 0.4)';
       setTimeout(() => {
         c.style.transform = 'none';
         c.style.boxShadow = 'none';
-      }, 1500);
+      }, 1800);
       c.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  });
+}
+
+function resetCameraView() {
+  currentHighlightedNode = null;
+  cameraTargetPos = new THREE.Vector3(0, 0, currentAutoFrameZ);
+  controlsTargetPos = new THREE.Vector3(0, 0, 0);
+
+  // Restore all opacities to 100%
+  threeObjects.forEach(obj => {
+    setObjectOpacity(obj.mesh, 1.0);
+    if (obj.labelEl) {
+      obj.labelEl.classList.remove('dimmed');
+      obj.labelEl.classList.remove('focused');
+    }
+  });
+
+  pathwayTubes.forEach(t => {
+    t.mesh.material.opacity = 1.0;
+  });
+}
+
+function setObjectOpacity(mesh, opacity) {
+  mesh.traverse(child => {
+    if (child.isMesh && child.material) {
+      child.material.transparent = true;
+      child.material.opacity = opacity;
     }
   });
 }
@@ -763,6 +955,10 @@ async function switchPreset(presetId) {
   selectedFoods.clear();
   selectedConditions.clear();
   activeTraceResult = null;
+  previousRegimenState = null;
+
+  const swapBanner = document.getElementById('swapSuccessBanner');
+  if (swapBanner) swapBanner.style.display = 'none';
 
   document.getElementById('symptomSelect').value = '';
   document.getElementById('traceResultBox').style.display = 'none';
@@ -833,12 +1029,11 @@ function updateKeyActionBanner(data) {
     return;
   }
 
-  // General fallback
   if (data.warnings && data.warnings.length > 0) {
     actionText.textContent = `KEY ACTION: ${data.warnings[0].title} — ${data.warnings[0].details.substring(0, 110)}...`;
     banner.style.display = 'block';
   } else {
-    actionText.textContent = "KEY ACTION: Regimen Clear — No critical metabolic collisions or timing gaps detected.";
+    actionText.textContent = "KEY ACTION: Regimen Safe & Clear — No critical metabolic collisions or timing gaps detected.";
     banner.style.display = 'block';
   }
 }
@@ -888,10 +1083,10 @@ async function triggerAnalysis() {
 }
 
 // ==========================================================================
-// 8. RIGHT PANEL RENDERERS
+// 8. RIGHT PANEL RENDERERS & ONE-CLICK APPLY SAFE SWAP
 // ==========================================================================
 
-// A. Clinical Warnings & Safe Swaps (Red 'X' Badges)
+// A. Clinical Warnings & Safe Swaps (Red 'X' Badges + One-Click Apply Safe Swap)
 function renderClinicalWarnings(warnings, brandOverlaps, safeAlts) {
   const ddContainer = document.getElementById('doubleDoseContainer');
   ddContainer.innerHTML = '';
@@ -921,7 +1116,8 @@ function renderClinicalWarnings(warnings, brandOverlaps, safeAlts) {
   if (warnings && warnings.length > 0) {
     warnings.forEach(w => {
       const card = document.createElement('div');
-      const isAmber = w.type.includes('Food') || w.type.includes('Timing');
+      const isSevere = w.severity === 'Severe' || w.severity === 'High';
+      const isAmber = (w.type.includes('Timing') || w.details?.includes('spacing')) && !isSevere;
       card.className = `alert-card-item ${isAmber ? 'amber-item' : ''}`;
       const sevClass = w.severity === 'Severe' ? 'severity-severe' : 'severity-high';
       card.innerHTML = `
@@ -932,6 +1128,7 @@ function renderClinicalWarnings(warnings, brandOverlaps, safeAlts) {
         </div>
         <div class="alert-item-body">${w.details}</div>
       `;
+      card.onclick = () => focusOnNode(w.title);
       wContainer.appendChild(card);
     });
   } else if (!brandOverlaps || brandOverlaps.length === 0) {
@@ -953,15 +1150,65 @@ function renderClinicalWarnings(warnings, brandOverlaps, safeAlts) {
         <div class="safe-item-title">&check; Consider: ${alt.alternative}</div>
         <div class="safe-item-replaces">Replaces <strong>${alt.replaces}</strong> for <em>${alt.condition}</em></div>
         <div class="safe-item-reason">${alt.reason}</div>
+        <button class="btn-apply-swap" onclick="applySafeSwap('${alt.replaces}', '${alt.alternative}', '${alt.condition}')">
+          🔄 Apply Safe Swap: Switch to ${alt.alternative}
+        </button>
       `;
       altContainer.appendChild(card);
     });
   } else {
-    altContainer.innerHTML = '<div class="empty-state-text">Safe alternatives appear when blocked pathways are detected.</div>';
+    altContainer.innerHTML = '<div class="empty-state-text">Safe alternative medicines will appear here when blocked pathways are detected.</div>';
   }
 }
 
-// B. Visual 5-Slot Daily Routine Schedule Cards
+// B. One-Click "Apply Safe Swap" Handler
+async function applySafeSwap(targetMed, altMed, condition) {
+  // Store previous regimen state for Undo
+  previousRegimenState = {
+    medicines: Array.from(selectedMedicines),
+    foods: Array.from(selectedFoods),
+    conditions: Array.from(selectedConditions)
+  };
+
+  // Perform swap in active regimen
+  selectedMedicines.delete(targetMed);
+  selectedMedicines.add(altMed);
+
+  updateChipsUI();
+
+  // Re-run analysis against Relate database
+  await triggerAnalysis();
+
+  // Display celebration banner
+  const banner = document.getElementById('swapSuccessBanner');
+  const bannerText = document.getElementById('swapSuccessText');
+  if (banner && bannerText) {
+    bannerText.textContent = `Replaced ${targetMed} with ${altMed}. Conflict resolved and pathway restored!`;
+    banner.style.display = 'flex';
+  }
+
+  // Smoothly fly camera to new safe alternative in 3D
+  focusOnNode(altMed);
+}
+
+// C. Undo Safe Swap Handler
+async function undoSafeSwap() {
+  if (!previousRegimenState) return;
+
+  selectedMedicines = new Set(previousRegimenState.medicines);
+  selectedFoods = new Set(previousRegimenState.foods);
+  selectedConditions = new Set(previousRegimenState.conditions);
+  previousRegimenState = null;
+
+  const banner = document.getElementById('swapSuccessBanner');
+  if (banner) banner.style.display = 'none';
+
+  updateChipsUI();
+  await triggerAnalysis();
+  resetCameraView();
+}
+
+// D. Visual 5-Slot Daily Routine Schedule Cards
 function renderSchedule(schedule) {
   const container = document.getElementById('scheduleTimeline');
   container.innerHTML = '';
@@ -997,7 +1244,7 @@ function renderSchedule(schedule) {
   });
 }
 
-// C. Cumulative Organ Load Progress Bars
+// E. Cumulative Organ Load Progress Bars
 function renderOrganLoad(loads) {
   const organs = ['Kidney', 'Liver', 'Stomach', 'Brain'];
   const maxScale = 12;
@@ -1033,7 +1280,7 @@ function renderOrganLoad(loads) {
   }
 }
 
-// D. Executed Cypher Queries Log
+// F. Executed Cypher Queries Log
 function renderExecutedQueries(queries) {
   const container = document.getElementById('recentQueriesContainer');
   container.innerHTML = '';
@@ -1088,6 +1335,7 @@ async function traceSymptom() {
       });
       resultBox.innerHTML = html;
       triggerAnalysis();
+      focusOnNode(data.culprits[0].medicine);
     } else {
       resultBox.innerHTML = `No direct causal link found between "${symptom}" and your currently selected medications.`;
     }
@@ -1157,7 +1405,85 @@ function insertSampleCypher() {
 }
 
 // ==========================================================================
-// 10. CONTROLS & AUTOCOMPLETE HELPER SETUP
+// 10. ASK SAFEMEDS AGENT (ZERO-API-KEY LOCAL NATURAL LANGUAGE ENGINE)
+// ==========================================================================
+async function handleAgentSubmit(event) {
+  if (event) event.preventDefault();
+  const input = document.getElementById('agentCommandInput');
+  const prompt = input ? input.value.trim() : '';
+  if (!prompt) return;
+  await executeAgentQuery(prompt);
+}
+
+async function askAgentPrompt(promptText) {
+  const input = document.getElementById('agentCommandInput');
+  if (input) input.value = promptText;
+  await executeAgentQuery(promptText);
+}
+
+async function executeAgentQuery(message) {
+  const popup = document.getElementById('agentResponsePopup');
+  const bodyEl = document.getElementById('agentResponseBody');
+  const chipEl = document.getElementById('agentCypherChip');
+  const codeEl = document.getElementById('agentCypherCode');
+  const footerEl = document.getElementById('agentResponseFooter');
+  const btnAction = document.getElementById('btnAgentApplyAction');
+
+  if (popup) popup.style.display = 'block';
+  if (bodyEl) bodyEl.innerHTML = '<span style="color:var(--royal-blue);">Querying in-process Relate graph database...</span>';
+  if (footerEl) footerEl.style.display = 'none';
+
+  try {
+    const res = await fetch('/api/agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: message,
+        active_medicines: Array.from(selectedMedicines),
+        foods: Array.from(selectedFoods),
+        conditions: Array.from(selectedConditions)
+      })
+    });
+    const data = await res.json();
+
+    if (chipEl) chipEl.textContent = `Cypher: ${data.elapsed_ms}ms`;
+    if (codeEl) codeEl.textContent = data.cypher || 'Executed against ./data/safemeds.rl';
+    if (bodyEl) {
+      let text = data.answer.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+      bodyEl.innerHTML = text;
+    }
+
+    // If safe swap action returned
+    if (data.swap_action && footerEl && btnAction) {
+      lastAgentSwapAction = data.swap_action;
+      btnAction.textContent = `⚡ Apply Recommended Swap: Switch to ${data.swap_action.with}`;
+      btnAction.onclick = () => {
+        applySafeSwap(data.swap_action.replace, data.swap_action.with, 'CYP Enzyme');
+        closeAgentResponse();
+      };
+      footerEl.style.display = 'block';
+    }
+
+    // Highlight matching nodes in 3D
+    if (data.highlight_nodes && data.highlight_nodes.length > 0) {
+      const firstTitle = data.highlight_nodes[0].replace(/^(med_|ing_|cond_|sym_)/, '');
+      focusOnNode(firstTitle);
+    }
+
+  } catch (e) {
+    console.error('Agent query error', e);
+    if (bodyEl) bodyEl.innerHTML = '<span style="color:var(--clinical-red);">Agent query failed to connect to local Relate backend.</span>';
+  }
+}
+
+function closeAgentResponse() {
+  const popup = document.getElementById('agentResponsePopup');
+  if (popup) popup.style.display = 'none';
+}
+
+// ==========================================================================
+// 11. CONTROLS, CHIPS & AUTOCOMPLETE HELPER SETUP
 // ==========================================================================
 function setupEventListeners() {
   window.switchPreset = switchPreset;
@@ -1171,6 +1497,12 @@ function setupEventListeners() {
   window.traceSymptom = traceSymptom;
   window.runCustomCypher = runCustomCypher;
   window.insertSampleCypher = insertSampleCypher;
+  window.applySafeSwap = applySafeSwap;
+  window.undoSafeSwap = undoSafeSwap;
+  window.handleAgentSubmit = handleAgentSubmit;
+  window.askAgentPrompt = askAgentPrompt;
+  window.closeAgentResponse = closeAgentResponse;
+  window.focusOnNode = focusOnNode;
 }
 
 function setupAutocomplete() {
@@ -1268,6 +1600,10 @@ function clearAllSelections() {
   selectedConditions.clear();
   activeTraceResult = null;
   currentAnalysisData = null;
+  previousRegimenState = null;
+
+  const swapBanner = document.getElementById('swapSuccessBanner');
+  if (swapBanner) swapBanner.style.display = 'none';
 
   document.getElementById('symptomSelect').value = '';
   document.getElementById('traceResultBox').style.display = 'none';
