@@ -513,24 +513,37 @@ def trace_symptom(req: SymptomTraceRequest):
         conn.close()
 
 # 6. LIVE CYPHER QUERY INSPECTOR / REPL
+WRITE_KEYWORDS = ["CREATE", "MERGE", "DELETE", "DETACH", "SET", "REMOVE", "DROP", "LOAD CSV", "CALL DBMS"]
+
+def check_write_cypher(text: str):
+    """
+    Strict read-only Cypher guard rejecting write/DDL keywords with HTTP 403.
+    Protects the persistent Relate single-file store ./data/safemeds.rl.
+    """
+    import re
+    upper = text.upper()
+    for kw in WRITE_KEYWORDS:
+        pattern = r'\b' + r'\s+'.join(re.escape(w) for w in kw.split()) + r'\b'
+        if re.search(pattern, upper):
+            raise HTTPException(
+                status_code=403,
+                detail="Read-only clinical safety database: write operations are disabled."
+            )
+
 @app.post("/api/cypher")
 def run_custom_cypher(req: CypherQueryRequest):
     query = req.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="Cypher query cannot be empty")
     
-    # Restrict write queries via live inspector for safety
-    restricted_keywords = ["DROP", "DELETE", "REMOVE", "CREATE CONSTRAINT", "CREATE INDEX"]
-    upper_q = query.upper()
-    if any(k in upper_q for k in restricted_keywords):
-        raise HTTPException(
-            status_code=403,
-            detail="Modifying DDL/DML (DROP, DELETE, REMOVE) is restricted in live inspector mode to protect persistent store."
-        )
+    # Strict read-only Cypher guard
+    check_write_cypher(query)
 
     try:
         result = execute_cypher(query, req.params)
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -540,6 +553,9 @@ def agent_query(req: AgentRequest):
     msg = req.message.strip()
     if not msg:
         raise HTTPException(status_code=400, detail="Query message cannot be empty")
+
+    # Strict read-only Cypher guard (reject write/DDL attempts)
+    check_write_cypher(msg)
 
     msg_lower = msg.lower()
     meds = req.active_medicines
@@ -719,20 +735,39 @@ def agent_query(req: AgentRequest):
                     "elapsed_ms": elapsed_ms
                 }
 
-        # 4. DEFAULT GENERAL QUERY
+        # 4. DEFAULT GENERAL / UNRECOGNIZED QUERY FALLBACK
         q_gen = "MATCH (m:Medicine) WHERE m.name IN $meds RETURN m.name AS name, m.generic_name AS generic"
         cur.execute(q_gen, {"meds": meds})
         active_list = [f"{r['name']} ({r['generic']})" for r in cur]
         elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
-        answer = (
-            f"SafeMeds graph agent is monitoring {len(meds)} active medications: {', '.join(active_list) if active_list else 'none selected'}. "
-            f"Ask about adding a specific medicine (e.g. 'Can I add Ibuprofen?'), investigating an adverse symptom (e.g. 'Why do I have muscle pain?'), or resolving an enzyme conflict."
-        )
+
+        is_general_intent = any(w in msg_lower for w in ["hello", "hi", "hey", "status", "overview", "summary", "help", "regimen", "medication", "active", "drugs"])
+        
+        if not is_general_intent:
+            answer = (
+                f"Query '{msg}' was not recognized as a known clinical interaction, symptom, or medication inquiry. "
+                f"SafeMeds is currently monitoring {len(meds)} active medication(s): "
+                f"{', '.join(active_list) if active_list else 'none currently selected'}.\n\n"
+                f"Suggested clinical inquiries:\n"
+                f"• Can I add Ibuprofen? (Check drug interactions & double-dose)\n"
+                f"• Why do I have muscle pain? (Trace adverse effect pathways)\n"
+                f"• How do I make this safe? (Find safe clinical alternatives)"
+            )
+        else:
+            answer = (
+                f"SafeMeds graph agent is monitoring {len(meds)} active medication(s): "
+                f"{', '.join(active_list) if active_list else 'none currently selected'}. "
+                f"Ask about adding a specific medicine (e.g. 'Can I add Ibuprofen?'), "
+                f"investigating an adverse symptom (e.g. 'Why do I have muscle pain?'), "
+                f"or resolving an enzyme conflict ('How do I make this safe?')."
+            )
+
         return {
             "answer": answer,
             "cypher": q_gen,
             "highlight_nodes": [f"med_{m}" for m in meds],
             "swap_action": None,
+            "suggestions": ["Can I add Ibuprofen?", "Why do I have muscle pain?", "How do I make this safe?"],
             "elapsed_ms": elapsed_ms
         }
 

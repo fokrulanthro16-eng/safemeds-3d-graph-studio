@@ -163,6 +163,11 @@
           <div class="lane-col-label safe-lane"><span class="lane-num">&check;</span> Safe Alternatives</div>
         </div>
 
+        <!-- TOP-RIGHT INTERACTION HINT PILL (BELOW SAFE ALTERNATIVES) -->
+        <div class="stage-interaction-hint top-hint">
+          <span class="hint-dot"></span> Drag to rotate 3D &bull; Scroll to zoom &bull; Click any 3D model
+        </div>
+
         <!-- ALL CLEAR NOTICE OVERLAY -->
         <div id="stageAllClearNotice" class="stage-all-clear-card" style="display: none;">
           <div class="all-clear-icon">&check;</div>
@@ -206,7 +211,7 @@
           </div>
         </div>
 
-        <!-- FLOATING 3D VIEW CONTROLS & HINT -->
+        <!-- FLOATING 3D VIEW CONTROLS (BOTTOM-LEFT) -->
         <div class="floating-stage-controls">
           <button class="btn-reset-camera" id="btnResetCamera" title="Reset 3D Camera">
             <svg class="camera-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -215,9 +220,6 @@
             </svg>
             Reset 3D View
           </button>
-          <div class="stage-interaction-hint">
-            <span class="hint-dot"></span> Drag to rotate 3D &bull; Scroll to zoom &bull; Click any 3D model
-          </div>
         </div>
 
       </div>
@@ -292,7 +294,7 @@
               <h3 class="section-heading">5-Slot Medication Schedule</h3>
               <span class="info-tag-pill">Optimized by Relate</span>
             </div>
-            <p class="section-description">Arranged automatically using graph properties (<code>take_with_food</code>, <code>min_gap_hours</code>) to ensure proper clinical spacing.</p>
+            <p class="section-description">Arranged automatically using meal timing and safe spacing rules.</p>
             
             <div id="scheduleTimeline" class="routine-cards-stack">
               <div class="empty-state-text">Select medications to generate an optimized daily timetable.</div>
@@ -307,7 +309,7 @@
               <h3 class="section-heading">Cumulative Organ Stress</h3>
               <span class="info-tag-pill">Aggregated Score</span>
             </div>
-            <p class="section-description">Sum of physiological <code>load_score</code> properties across all active ingredients.</p>
+            <p class="section-description">Combined metabolic and physiological burden across your active medications.</p>
 
             <div class="organ-progress-group">
               <div class="organ-label-line">

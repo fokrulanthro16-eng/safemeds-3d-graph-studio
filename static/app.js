@@ -536,14 +536,39 @@ function createSafeAlternativeCapsule(name) {
 // ==========================================================================
 // 3. ZERO-HAIRBALL 4-LANE 3D ARCHITECTURE (CENTER-CORRIDOR FRAMING)
 // ==========================================================================
+function disposeHierarchy(obj) {
+  if (!obj) return;
+  obj.traverse(child => {
+    if (child.isMesh || child.isPoints || child.isLine) {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose());
+        } else {
+          child.material.dispose();
+        }
+      }
+    }
+  });
+}
+
 function clearThreeStage() {
-  threeObjects.forEach(obj => scene.remove(obj.mesh));
+  threeObjects.forEach(obj => {
+    disposeHierarchy(obj.mesh);
+    scene.remove(obj.mesh);
+  });
   threeObjects = [];
 
-  pathwayTubes.forEach(t => scene.remove(t.mesh));
+  pathwayTubes.forEach(t => {
+    disposeHierarchy(t.mesh);
+    scene.remove(t.mesh);
+  });
   pathwayTubes = [];
 
-  energyPulses.forEach(p => scene.remove(p.mesh));
+  energyPulses.forEach(p => {
+    disposeHierarchy(p.mesh);
+    scene.remove(p.mesh);
+  });
   energyPulses = [];
 
   const labelsOverlay = document.getElementById('labelsOverlay');
@@ -630,11 +655,11 @@ function renderThreeStage(data) {
 
   // DYNAMIC CAMERA AUTO-FRAMING: Generous vertical Y-spacing and camera Z distance
   const maxNodesInCol = Math.max(col1Nodes.length, col2Nodes.length, col3Items.length, col4Alts.length, 1);
-  currentAutoFrameZ = Math.max(21.0, 14.5 + maxNodesInCol * 1.7);
+  currentAutoFrameZ = Math.max(22.4, 15.9 + maxNodesInCol * 1.7);
 
-  // Smoothly position camera centered in open corridor
-  cameraTargetPos = new THREE.Vector3(CORRIDOR_CENTER_X, 0, currentAutoFrameZ);
-  controlsTargetPos = new THREE.Vector3(CORRIDOR_CENTER_X, 0, 0);
+  // Smoothly position camera centered in open corridor, slightly lowered so top capsule has headroom
+  cameraTargetPos = new THREE.Vector3(CORRIDOR_CENTER_X, -0.4, currentAutoFrameZ);
+  controlsTargetPos = new THREE.Vector3(CORRIDOR_CENTER_X, -0.4, 0);
 
   // 1. Position Column 1: Intake (X = -5.8)
   col1Nodes.forEach((node, i) => {
@@ -958,20 +983,86 @@ function onCanvasClick(event) {
   }
 }
 
-// Focus on Node with Smooth Camera Fly-To & 22% Opacity Dimming on Unrelated Nodes
+// Focus on Multi-Node Bounding-Box Pathway with Smooth Camera Fly-To & 20% Opacity Dimming on Unrelated Nodes
+function focusOnPathway(nodeTitles) {
+  if (!nodeTitles || nodeTitles.length === 0) return;
+
+  const targetTitles = Array.isArray(nodeTitles) ? nodeTitles : [nodeTitles];
+  const matchedTitles = new Set();
+
+  threeObjects.forEach(obj => {
+    const objLower = obj.title.toLowerCase();
+    const isDirectMatch = targetTitles.some(t => {
+      const tLower = t.toLowerCase();
+      return objLower === tLower || objLower.includes(tLower) || tLower.includes(objLower);
+    });
+    if (isDirectMatch) {
+      matchedTitles.add(obj.title);
+    }
+  });
+
+  // Include intermediate connected nodes along the pathway
+  pathwayTubes.forEach(t => {
+    if (matchedTitles.has(t.src.title) || matchedTitles.has(t.tgt.title)) {
+      const other = matchedTitles.has(t.src.title) ? t.tgt.title : t.src.title;
+      if (targetTitles.some(tt => other.toLowerCase().includes(tt.toLowerCase()) || tt.toLowerCase().includes(other.toLowerCase()))) {
+        matchedTitles.add(other);
+      }
+    }
+  });
+
+  const finalObjects = threeObjects.filter(obj => matchedTitles.has(obj.title));
+  if (finalObjects.length === 0) return;
+
+  currentHighlightedNode = finalObjects.map(o => o.title).join(' + ');
+
+  // Compute bounding box across all matched nodes in the pathway
+  const box = new THREE.Box3();
+  finalObjects.forEach(obj => {
+    box.expandByPoint(obj.mesh.position);
+  });
+
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+
+  const maxDim = Math.max(size.x, size.y, 3.5);
+  // Calculate Z distance to frame entire pathway bounding box with generous padding
+  const fitZ = Math.max(12.0, maxDim * 1.55);
+
+  cameraTargetPos = new THREE.Vector3(center.x, center.y, fitZ);
+  controlsTargetPos = new THREE.Vector3(center.x, center.y, 0);
+
+  // Apply Dimming: unrelated nodes dim to 20% opacity
+  threeObjects.forEach(obj => {
+    const isFocused = matchedTitles.has(obj.title);
+    setObjectOpacity(obj.mesh, isFocused ? 1.0 : 0.20);
+    if (obj.labelEl) {
+      if (isFocused) {
+        obj.labelEl.classList.remove('dimmed');
+        obj.labelEl.classList.add('focused');
+      } else {
+        obj.labelEl.classList.remove('focused');
+        obj.labelEl.classList.add('dimmed');
+      }
+    }
+  });
+
+  // Dim unrelated pathway tubes
+  pathwayTubes.forEach(t => {
+    const isConnected = matchedTitles.has(t.src.title) && matchedTitles.has(t.tgt.title);
+    t.mesh.material.opacity = isConnected ? 1.0 : 0.18;
+  });
+}
+
+// Single node focus delegating to multi-node pathway bounding-box framing
 function focusOnNode(nodeTitle) {
   const targetObj = threeObjects.find(o => 
     o.title.toLowerCase() === nodeTitle.toLowerCase() ||
     nodeTitle.toLowerCase().includes(o.title.toLowerCase())
   );
   if (!targetObj) return;
-
-  currentHighlightedNode = targetObj.title;
-
-  // Smoothly fly camera to node
-  const pos = targetObj.mesh.position;
-  cameraTargetPos = new THREE.Vector3(pos.x, pos.y, pos.z + 5.5);
-  controlsTargetPos = pos.clone();
 
   // Find connected nodes
   const connectedTitles = new Set([targetObj.title]);
@@ -987,25 +1078,7 @@ function focusOnNode(nodeTitle) {
     });
   }
 
-  // Apply Dimming: unrelated nodes dim to 22% opacity
-  threeObjects.forEach(obj => {
-    const isFocused = connectedTitles.has(obj.title);
-    setObjectOpacity(obj.mesh, isFocused ? 1.0 : 0.22);
-    if (obj.labelEl) {
-      if (isFocused) {
-        obj.labelEl.classList.remove('dimmed');
-        obj.labelEl.classList.add('focused');
-      } else {
-        obj.labelEl.classList.remove('focused');
-        obj.labelEl.classList.add('dimmed');
-      }
-    }
-  });
-
-  pathwayTubes.forEach(t => {
-    const isConnected = connectedTitles.has(t.src.title) && connectedTitles.has(t.tgt.title);
-    t.mesh.material.opacity = isConnected ? 1.0 : 0.18;
-  });
+  focusOnPathway(Array.from(connectedTitles));
 
   // Switch to clinical risks tab and highlight corresponding warning card
   switchRightTab('clinical');
@@ -1025,8 +1098,8 @@ function focusOnNode(nodeTitle) {
 
 function resetCameraView() {
   currentHighlightedNode = null;
-  cameraTargetPos = new THREE.Vector3(CORRIDOR_CENTER_X, 0, currentAutoFrameZ);
-  controlsTargetPos = new THREE.Vector3(CORRIDOR_CENTER_X, 0, 0);
+  cameraTargetPos = new THREE.Vector3(CORRIDOR_CENTER_X, -0.4, currentAutoFrameZ);
+  controlsTargetPos = new THREE.Vector3(CORRIDOR_CENTER_X, -0.4, 0);
 
   // Restore all opacities to 100%
   threeObjects.forEach(obj => {
@@ -1209,6 +1282,15 @@ function renderClinicalWarnings(warnings, brandOverlaps, safeAlts) {
         </div>
         <div class="alert-item-body">${dd.warning}</div>
       `;
+      card.onclick = () => {
+        const titlesToFocus = ['Double Dose Overdose'];
+        threeObjects.forEach(obj => {
+          if (dd.warning.toLowerCase().includes(obj.title.toLowerCase())) {
+            titlesToFocus.push(obj.title);
+          }
+        });
+        focusOnPathway(titlesToFocus);
+      };
       ddContainer.appendChild(card);
     });
   }
@@ -1235,7 +1317,17 @@ function renderClinicalWarnings(warnings, brandOverlaps, safeAlts) {
         </div>
         <div class="alert-item-body">${w.details}</div>
       `;
-      card.onclick = () => focusOnNode(w.title);
+      card.onclick = () => {
+        const titlesToFocus = [w.title];
+        if (w.details) {
+          threeObjects.forEach(obj => {
+            if (w.details.toLowerCase().includes(obj.title.toLowerCase()) || w.title.toLowerCase().includes(obj.title.toLowerCase())) {
+              titlesToFocus.push(obj.title);
+            }
+          });
+        }
+        focusOnPathway(titlesToFocus);
+      };
       wContainer.appendChild(card);
     });
   } else if (!brandOverlaps || brandOverlaps.length === 0) {
@@ -1646,8 +1738,16 @@ async function executeAgentQuery(message) {
     if (chipEl) chipEl.textContent = `Cypher: ${data.elapsed_ms}ms`;
     if (codeEl) codeEl.textContent = data.cypher || 'Executed against ./data/safemeds.rl';
     if (bodyEl) {
-      let text = data.answer.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      let text = (data.answer || '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
       text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+      text = text.replace(/\n/g, '<br>');
+      if (data.suggestions && data.suggestions.length > 0) {
+        text += '<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;">';
+        data.suggestions.forEach(sug => {
+          text += `<button class="agent-prompt-chip" style="font-size:0.68rem;padding:3px 8px;cursor:pointer;" onclick="askAgentPrompt('${sug}')">✨ ${sug}</button>`;
+        });
+        text += '</div>';
+      }
       bodyEl.innerHTML = text;
     }
 
@@ -1662,10 +1762,10 @@ async function executeAgentQuery(message) {
       footerEl.style.display = 'block';
     }
 
-    // Highlight matching nodes in 3D
+    // Highlight matching nodes in 3D using multi-node pathway bounding-box framing
     if (data.highlight_nodes && data.highlight_nodes.length > 0) {
-      const firstTitle = data.highlight_nodes[0].replace(/^(med_|ing_|cond_|sym_|food_)/, '');
-      focusOnNode(firstTitle);
+      const cleanTitles = data.highlight_nodes.map(n => n.replace(/^(med_|ing_|cond_|sym_|food_)/, ''));
+      focusOnPathway(cleanTitles);
     }
 
   } catch (e) {
@@ -1700,6 +1800,7 @@ function setupEventListeners() {
   window.askAgentPrompt = askAgentPrompt;
   window.closeAgentResponse = closeAgentResponse;
   window.focusOnNode = focusOnNode;
+  window.focusOnPathway = focusOnPathway;
 }
 
 function setupAutocomplete() {

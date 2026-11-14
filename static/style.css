@@ -60,7 +60,10 @@
 html, body {
   height: 100vh;
   width: 100vw;
+  max-width: 100vw;
   overflow: hidden;
+  overflow-x: hidden;
+  box-sizing: border-box;
   font-family: var(--font-body);
   background: radial-gradient(circle at 50% 35%, #38BDF8 0%, #0284C7 45%, #0B3D91 100%);
   color: var(--text-body);
@@ -98,6 +101,8 @@ html, body {
 .studio-chrome {
   position: fixed;
   inset: 0;
+  max-width: 100vw;
+  box-sizing: border-box;
   z-index: 10;
   pointer-events: none;
   display: flex;
@@ -105,6 +110,7 @@ html, body {
   padding: 12px;
   gap: 12px;
   overflow: hidden;
+  overflow-x: hidden;
 }
 
 /* ==========================================================================
@@ -301,6 +307,9 @@ html, body {
   display: flex;
   justify-content: space-between;
   min-height: 0;
+  max-width: 100vw;
+  box-sizing: border-box;
+  overflow-x: hidden;
   pointer-events: none;
   gap: 14px;
   position: relative;
@@ -779,9 +788,7 @@ html, body {
   position: absolute;
   bottom: 12px;
   left: 14px;
-  right: 14px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
   pointer-events: none;
   z-index: 25;
@@ -829,6 +836,15 @@ html, body {
   display: flex;
   align-items: center;
   gap: 6px;
+  box-shadow: 0 4px 14px rgba(11, 61, 145, 0.15);
+}
+
+.stage-interaction-hint.top-hint {
+  position: absolute;
+  top: 36px;
+  right: 10px;
+  z-index: 20;
+  pointer-events: none;
 }
 
 .hint-dot {
@@ -919,11 +935,12 @@ html, body {
 
 .tab-pane {
   display: none;
-  padding: 14px;
+  padding: 10px 12px;
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .tab-pane.active {
@@ -935,17 +952,17 @@ html, body {
   background: var(--bright-yellow-bg);
   border: 2px solid var(--bright-yellow-border);
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 8px 12px;
   box-shadow: 0 4px 14px rgba(250, 204, 21, 0.25);
 }
 
 .action-tagline {
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .lightning-badge {
   font-family: var(--font-heading);
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 800;
   color: var(--navy-action-text);
   letter-spacing: 0.05em;
@@ -954,10 +971,10 @@ html, body {
 
 .action-text {
   font-family: var(--font-heading);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 800;
   color: var(--navy-action-text);
-  line-height: 1.35;
+  line-height: 1.32;
 }
 
 /* CLINICAL SECTION CARD */
@@ -965,7 +982,7 @@ html, body {
   background: var(--pure-white);
   border: 1px solid var(--border-blue);
   border-radius: 12px;
-  padding: 12px;
+  padding: 10px;
   box-shadow: 0 2px 8px rgba(11, 61, 145, 0.04);
 }
 
@@ -973,12 +990,12 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .section-heading {
   font-family: var(--font-heading);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--text-navy);
 }
@@ -1017,10 +1034,10 @@ html, body {
 }
 
 .section-description {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
-  margin-bottom: 10px;
-  line-height: 1.35;
+  margin-bottom: 8px;
+  line-height: 1.32;
 }
 
 .empty-state-text {
@@ -1033,7 +1050,7 @@ html, body {
 .vertical-cards-stack {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 /* RED 'X' INTERACTION ALERT CARD */
@@ -1042,7 +1059,7 @@ html, body {
   border: 1px solid var(--border-light);
   border-left: 4px solid var(--clinical-red);
   border-radius: 8px;
-  padding: 10px;
+  padding: 8px 10px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
 }
 
@@ -1111,7 +1128,7 @@ html, body {
   border: 1px solid #A7F3D0;
   border-left: 4px solid #10B981;
   border-radius: 8px;
-  padding: 10px;
+  padding: 8px 10px;
 }
 
 .safe-item-title {
@@ -1370,15 +1387,15 @@ html, body {
 
 /* ONE-CLICK APPLY SAFE SWAP BUTTON */
 .btn-apply-swap {
-  margin-top: 8px;
+  margin-top: 6px;
   width: 100%;
   background: linear-gradient(135deg, #10B981 0%, #047857 100%);
   border: 1px solid #059669;
   color: #FFFFFF;
   font-family: var(--font-heading);
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  padding: 7px 12px;
+  padding: 6px 10px;
   border-radius: 8px;
   cursor: pointer;
   display: flex;
