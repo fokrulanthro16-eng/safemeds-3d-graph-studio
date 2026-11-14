@@ -1,0 +1,7 @@
+# SafeMeds — Optional Studio Media Generation Dependencies
+# (For 4K UHD 60fps video and screenshot generation scripts)
+playwright>=1.40.0
+edge-tts>=6.1.9
+imageio-ffmpeg>=0.4.9
+pillow>=10.0.0
+numpy>=1.26.0

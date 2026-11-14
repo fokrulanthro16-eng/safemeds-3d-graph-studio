@@ -7,6 +7,8 @@ Exposes Cypher-powered analysis endpoints, reverse symptom tracing, and live que
 import os
 import sys
 import time
+import shutil
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -14,13 +16,51 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 import relate
 
-# Locate persistent Relate database
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(BASE_DIR, "data", "safemeds.rl")
-STATIC_DIR = os.path.join(BASE_DIR, "static")
+# Locate persistent Relate database and static assets
+BASE_DIR = Path(__file__).resolve().parent.parent
+ORIG_DB_PATH = BASE_DIR / "data" / "safemeds.rl"
+STATIC_DIR = BASE_DIR / "static"
 
-if not os.path.exists(DB_PATH):
-    raise RuntimeError(f"Persistent Relate database not found at {DB_PATH}. Run scripts/seed_data.py first.")
+def get_database_path() -> str:
+    """
+    Resolves the Relate database path with serverless / read-only filesystem compatibility.
+    If the working directory is read-only (such as on Vercel serverless / AWS Lambda),
+    safemeds.rl is automatically copied to /tmp/safemeds.rl on first run.
+    """
+    tmp_path = Path("/tmp") / "safemeds.rl"
+    
+    # Check for serverless environment or read-only directory
+    if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        if not tmp_path.exists() and ORIG_DB_PATH.exists():
+            try:
+                shutil.copy2(str(ORIG_DB_PATH), str(tmp_path))
+            except Exception as e:
+                print(f"[SafeMeds] Warning copying database to /tmp: {e}")
+        if tmp_path.exists():
+            return str(tmp_path)
+
+    # Local / Docker environment: use ORIG_DB_PATH if writable or present
+    if ORIG_DB_PATH.exists():
+        if os.access(str(ORIG_DB_PATH.parent), os.W_OK):
+            return str(ORIG_DB_PATH)
+        else:
+            # Read-only filesystem detected: copy to /tmp
+            if not tmp_path.exists():
+                try:
+                    shutil.copy2(str(ORIG_DB_PATH), str(tmp_path))
+                except Exception as e:
+                    print(f"[SafeMeds] Warning copying database to /tmp: {e}")
+            if tmp_path.exists():
+                return str(tmp_path)
+            return str(ORIG_DB_PATH)
+
+    # Fallback check for /tmp if origin not found
+    if tmp_path.exists():
+        return str(tmp_path)
+
+    raise RuntimeError(f"Persistent Relate database not found at {ORIG_DB_PATH} or {tmp_path}.")
+
+DB_PATH = get_database_path()
 
 app = FastAPI(
     title="SafeMeds API",
@@ -30,7 +70,20 @@ app = FastAPI(
 
 # Helpers for Relate queries
 def get_db(read_only: bool = True):
-    return relate.connect(DB_PATH, read_only=read_only)
+    global DB_PATH
+    try:
+        return relate.connect(DB_PATH, read_only=read_only)
+    except Exception as e:
+        # Fallback to /tmp on serverless filesystem or locking error
+        tmp_path = Path("/tmp") / "safemeds.rl"
+        if DB_PATH != str(tmp_path) and ORIG_DB_PATH.exists():
+            try:
+                shutil.copy2(str(ORIG_DB_PATH), str(tmp_path))
+                DB_PATH = str(tmp_path)
+                return relate.connect(DB_PATH, read_only=read_only)
+            except Exception:
+                pass
+        raise e
 
 def execute_cypher(query: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     t0 = time.perf_counter()
@@ -775,11 +828,11 @@ def agent_query(req: AgentRequest):
         conn.close()
 
 # Mount static files
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 @app.get("/")
 def index():
-    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+    return FileResponse(str(STATIC_DIR / "index.html"))
 
 if __name__ == "__main__":
     import uvicorn
