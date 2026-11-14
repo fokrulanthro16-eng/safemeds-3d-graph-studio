@@ -1,5 +1,5 @@
 // ==========================================================================
-// SafeMeds — BrightLife Medical Frontend Controller
+// SafeMeds — Frosted Glassmorphism Frontend Controller
 // Real-time Cypher-driven clinical graph traversal
 // ==========================================================================
 
@@ -8,6 +8,7 @@ let selectedMedicines = new Set();
 let selectedFoods = new Set();
 let selectedConditions = new Set();
 let activeTraceResult = null;
+let currentAnalysisData = null;
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', async () => {
@@ -15,14 +16,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadCatalog();
   setupAutocomplete();
   
-  // Clean initial preset load: Preset 1 (Heart + Gastric Block)
-  loadPreset('preset_1');
+  // AUTO-LOAD PRESET 1 ON INITIAL PAGE LOAD (NEVER EMPTY)
+  await loadPreset('preset_1');
 
   // Re-draw SVG connectors on window resize or scroll
-  window.addEventListener('resize', () => drawPathwayConnectors());
+  window.addEventListener('resize', () => {
+    if (currentAnalysisData) drawPathwayConnectors(currentAnalysisData);
+  });
+  
   const canvas = document.getElementById('pathwayCanvas');
   if (canvas) {
-    canvas.addEventListener('scroll', () => drawPathwayConnectors());
+    canvas.addEventListener('scroll', () => {
+      if (currentAnalysisData) drawPathwayConnectors(currentAnalysisData);
+    });
   }
 });
 
@@ -108,7 +114,7 @@ function setupAutocomplete() {
     );
 
     if (matches.length === 0) {
-      dropdown.innerHTML = '<div class="dropdown-item" style="color:#8A9E92;font-style:italic;">No matching medicines found</div>';
+      dropdown.innerHTML = '<div class="dropdown-item" style="color:var(--text-faint);font-style:italic;">No matching medicines found</div>';
       dropdown.style.display = 'block';
       return;
     }
@@ -117,11 +123,10 @@ function setupAutocomplete() {
     matches.slice(0, 10).forEach(m => {
       const item = document.createElement('div');
       item.className = 'dropdown-item';
-      const isSelected = selectedMedicines.has(m.name);
       item.innerHTML = `
         <div>
           <span class="item-name">${m.name}</span>
-          ${m.is_brand ? `<span style="font-size:0.6rem;background:#EAF5EE;color:#143D28;padding:1px 4px;border-radius:3px;margin-left:4px;">Brand</span>` : ''}
+          ${m.is_brand ? `<span style="font-size:0.6rem;background:rgba(190,242,100,0.18);color:var(--glow-lime);padding:1px 5px;border-radius:3px;margin-left:4px;">Brand</span>` : ''}
         </div>
         <span class="item-meta">${m.ingredient || m.generic_name}</span>
       `;
@@ -240,6 +245,7 @@ function clearAllSelections(skipTrigger = false) {
   selectedFoods.clear();
   selectedConditions.clear();
   activeTraceResult = null;
+  currentAnalysisData = null;
 
   document.getElementById('symptomSelect').value = '';
   document.getElementById('traceResultBox').style.display = 'none';
@@ -250,10 +256,9 @@ function clearAllSelections(skipTrigger = false) {
   }
 }
 
-// 6. ONE-CLICK PRESET BUTTONS (MUST CLEAR FIRST!)
+// 6. ONE-CLICK PRESET BUTTONS (ALWAYS CLEARS PREVIOUS FIRST)
 async function loadPreset(presetId) {
   try {
-    // FIX: Clear all previously selected medicines, foods, conditions, and symptoms first
     clearAllSelections(true);
 
     const res = await fetch('/api/presets');
@@ -271,7 +276,7 @@ async function loadPreset(presetId) {
       document.getElementById('symptomSelect').value = p.symptom;
     }
 
-    triggerAnalysis();
+    await triggerAnalysis();
   } catch (e) {
     console.error('Failed to load preset', e);
   }
@@ -308,8 +313,9 @@ async function triggerAnalysis() {
       body: JSON.stringify(reqBody)
     });
     const data = await res.json();
+    currentAnalysisData = data;
 
-    // Render the structured 4-column pathway diagram (excluding Organ nodes)
+    // Render the structured 4-column pathway diagram
     renderPathwayDiagram(data);
 
     // Render Right Column panels
@@ -329,7 +335,11 @@ function clearPathwayDiagram() {
   document.getElementById('stackIngredients').innerHTML = '';
   document.getElementById('stackConflicts').innerHTML = '';
   document.getElementById('stackAlternatives').innerHTML = '';
-  document.getElementById('pathwaySvg').innerHTML = '';
+  const svg = document.getElementById('pathwaySvg');
+  // keep defs intact
+  const defs = svg.querySelector('defs');
+  svg.innerHTML = '';
+  if (defs) svg.appendChild(defs);
 }
 
 function renderPathwayDiagram(data) {
@@ -374,9 +384,9 @@ function renderPathwayDiagram(data) {
     card.className = 'pathway-card card-ingredient';
     card.id = `card_${sanitizeId(node.id)}`;
     card.innerHTML = `
-      <span class="card-category-pill">Molecule</span>
+      <span class="card-category-pill">Active Molecule</span>
       <div class="card-main-title">${node.title}</div>
-      <span class="card-subtext">Active Generic</span>
+      <span class="card-subtext">Generic Substance</span>
     `;
     stackIngredients.appendChild(card);
   });
@@ -391,7 +401,7 @@ function renderPathwayDiagram(data) {
       id: `conf_${sanitizeId(e.id)}`,
       title: `${e.title} Blocked`,
       pill: 'CYP ENZYME COLLISION',
-      sub: 'Bioactivation Blocked',
+      sub: 'Bioactivation Inhibited',
       isAmber: false,
       relatedSourceId: e.id
     });
@@ -413,7 +423,7 @@ function renderPathwayDiagram(data) {
   // Food Interactions / Chelation Gaps
   const foodEdges = nonOrganEdges.filter(e => e.type === 'BINDS_OR_CONFLICTS_WITH');
   foodEdges.forEach((fe, idx) => {
-    const isAmber = fe.severity === 'spacing' || fe.label.includes('Gap');
+    const isAmber = fe.severity === 'spacing' || (fe.label && fe.label.includes('Gap'));
     conflictItems.push({
       id: `conf_fe_${idx}`,
       title: isAmber ? '3-Hour Spacing Needed' : 'Food Inactivation',
@@ -498,23 +508,26 @@ function renderPathwayDiagram(data) {
     safeState.style.display = 'none';
   }
 
-  // Draw smooth SVG connector curves with pills after elements settle
-  requestAnimationFrame(() => {
+  // Draw smooth SVG connector curves with glow filters and pill labels
+  setTimeout(() => {
     drawPathwayConnectors(data, conflictItems, safeAlts);
-  });
+  }, 40);
 }
 
 function sanitizeId(str) {
   return String(str).replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
-// 9. DRAW SVG CONNECTORS BETWEEN CARDS (SMOOTH CURVES WITH PILLS)
+// 9. DRAW GLOWING SVG CONNECTORS BETWEEN CARDS (ANIMATED FLOWING BEZIERS)
 function drawPathwayConnectors(data = null, conflictItems = [], safeAlts = []) {
   const svg = document.getElementById('pathwaySvg');
   const canvas = document.getElementById('pathwayCanvas');
   if (!svg || !canvas) return;
 
+  const defs = svg.querySelector('defs');
   svg.innerHTML = '';
+  if (defs) svg.appendChild(defs);
+
   const canvasRect = canvas.getBoundingClientRect();
 
   // Helper to draw a smooth cubic Bezier between two card elements
@@ -532,7 +545,6 @@ function drawPathwayConnectors(data = null, conflictItems = [], safeAlts = []) {
     const x2 = r2.left - canvasRect.left + canvas.scrollLeft;
     const y2 = r2.top - canvasRect.top + r2.height / 2 + canvas.scrollTop;
 
-    // Avoid drawing inverted or zero lines
     if (x2 <= x1 + 10) return;
 
     const dx = (x2 - x1) * 0.45;
@@ -541,6 +553,16 @@ function drawPathwayConnectors(data = null, conflictItems = [], safeAlts = []) {
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', pathD);
     path.setAttribute('class', `connector-line ${styleClass}`);
+
+    // Apply glowing SVG filters
+    if (styleClass.includes('conflict')) {
+      path.setAttribute('filter', 'url(#glow-red)');
+    } else if (styleClass.includes('spacing')) {
+      path.setAttribute('filter', 'url(#glow-amber)');
+    } else if (styleClass.includes('safe')) {
+      path.setAttribute('filter', 'url(#glow-green)');
+    }
+
     svg.appendChild(path);
 
     // Pill label in the middle
@@ -551,8 +573,8 @@ function drawPathwayConnectors(data = null, conflictItems = [], safeAlts = []) {
       const pillGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       pillGroup.setAttribute('transform', `translate(${mx}, ${my})`);
 
-      const pillW = Math.max(48, pillLabel.length * 6.5 + 12);
-      const pillH = 16;
+      const pillW = Math.max(50, pillLabel.length * 6.5 + 12);
+      const pillH = 17;
 
       const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
       bg.setAttribute('x', -pillW / 2);
@@ -577,7 +599,6 @@ function drawPathwayConnectors(data = null, conflictItems = [], safeAlts = []) {
 
   intakeCards.forEach(c1 => {
     ingCards.forEach(c2 => {
-      // Direct string match or prefix check
       const medName = c1.querySelector('.card-main-title')?.textContent.trim();
       const ingName = c2.querySelector('.card-main-title')?.textContent.trim();
       if (medName && ingName && (medName.includes(ingName) || ingName.includes(medName) || isKnownPair(medName, ingName))) {
@@ -762,11 +783,11 @@ function renderOrganLoad(loads) {
 
   const assessBox = document.getElementById('organAssessmentCard');
   if (totalScore >= 12) {
-    assessBox.innerHTML = `<strong style="color:var(--alert-red-text);">⚠️ Critical Cumulative Organ Stress:</strong> Multiple concurrent medications place severe load on renal and GI filtration pathways.`;
+    assessBox.innerHTML = `<strong style="color:var(--glow-red);">⚠️ Critical Cumulative Organ Stress:</strong> Multiple concurrent medications place severe load on renal and GI filtration pathways.`;
   } else if (totalScore >= 6) {
-    assessBox.innerHTML = `<strong style="color:var(--alert-amber-text);">Moderate Organ Burden:</strong> Regular metabolic monitoring advised.`;
+    assessBox.innerHTML = `<strong style="color:var(--glow-amber);">Moderate Organ Burden:</strong> Regular metabolic monitoring advised.`;
   } else if (totalScore > 0) {
-    assessBox.innerHTML = `<strong style="color:var(--emerald-accent);">Low Organ Burden:</strong> Cumulative clearance remains within normal parameters.`;
+    assessBox.innerHTML = `<strong style="color:var(--glow-mint);">Low Organ Burden:</strong> Cumulative clearance remains within normal parameters.`;
   } else {
     assessBox.innerHTML = `Select medications to calculate cumulative physiological burden.`;
   }
@@ -818,7 +839,7 @@ async function traceSymptom() {
       data.culprits.forEach(c => {
         html += `
           <div style="margin-top:5px;">
-            ⚠️ <strong>${c.medicine}</strong> (${c.ingredient}) &middot; <em>${c.frequency}</em><br>
+            ⚠️ <strong style="color:var(--glow-red);">${c.medicine}</strong> (${c.ingredient}) &middot; <em>${c.frequency}</em><br>
             <span style="font-size:0.68rem;opacity:0.9;">Mechanism: ${c.mechanism}</span>
           </div>
         `;
@@ -852,16 +873,16 @@ async function runCustomCypher() {
     const data = await res.json();
 
     if (res.status !== 200) {
-      outArea.innerHTML = `<span style="color:var(--alert-red-text);">Error: ${data.detail || 'Query failed'}</span>`;
+      outArea.innerHTML = `<span style="color:var(--glow-red);">Error: ${data.detail || 'Query failed'}</span>`;
       return;
     }
 
     if (!data.rows || data.rows.length === 0) {
-      outArea.innerHTML = `<span style="color:var(--emerald-accent);">Query executed in ${data.elapsed_ms} ms (0 rows).</span>`;
+      outArea.innerHTML = `<span style="color:var(--glow-mint);">Query executed in ${data.elapsed_ms} ms (0 rows).</span>`;
       return;
     }
 
-    let table = `<div style="color:var(--emerald-accent);margin-bottom:4px;font-weight:600;">✓ Returned ${data.count} row(s) in ${data.elapsed_ms} ms:</div>`;
+    let table = `<div style="color:var(--glow-lime);margin-bottom:4px;font-weight:600;">✓ Returned ${data.count} row(s) in ${data.elapsed_ms} ms:</div>`;
     table += '<table class="cypher-table"><thead><tr>';
     data.columns.forEach(c => table += `<th>${c}</th>`);
     table += '</tr></thead><tbody>';
@@ -879,7 +900,7 @@ async function runCustomCypher() {
 
     outArea.innerHTML = table;
   } catch (e) {
-    outArea.innerHTML = `<span style="color:var(--alert-red-text);">Execution error: ${e.message}</span>`;
+    outArea.innerHTML = `<span style="color:var(--glow-red);">Execution error: ${e.message}</span>`;
   }
 }
 

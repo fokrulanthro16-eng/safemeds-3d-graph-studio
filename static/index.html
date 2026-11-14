@@ -10,10 +10,19 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <!-- TOP BAR (BRIGHTLIFE CLINICAL HEADER) -->
-  <header class="top-bar">
+  <!-- AURORA MESH BACKGROUND & AMBIENT GLOW ORBS -->
+  <div class="aurora-canvas" aria-hidden="true">
+    <div class="aurora-orb orb-lime"></div>
+    <div class="aurora-orb orb-emerald"></div>
+    <div class="aurora-orb orb-cyan"></div>
+    <div class="aurora-orb orb-mint"></div>
+    <div class="grid-overlay"></div>
+  </div>
+
+  <!-- TOP BAR (FROSTED VISIONOS GLASS HEADER) -->
+  <header class="top-bar glass-panel">
     <div class="brand">
-      <div class="brand-badge">
+      <div class="brand-badge glass-card-sm">
         <svg class="shield-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           <path d="M9 12l2 2 4-4"/>
@@ -22,9 +31,9 @@
       <div>
         <div class="brand-title-row">
           <h1 class="brand-name">SafeMeds</h1>
-          <span class="system-tag">BrightLife Medical System</span>
+          <span class="system-tag glass-pill">visionOS &middot; BrightLife Engine</span>
         </div>
-        <p class="brand-subtitle">Connected Pharmacological Safety Graph · Zero-Cloud Local Relate Engine</p>
+        <p class="brand-subtitle">Connected Pharmacological Safety Graph &middot; Zero-Cloud In-Process Relate</p>
       </div>
     </div>
 
@@ -32,23 +41,23 @@
     <div class="preset-container">
       <span class="preset-label">Clinical Presets:</span>
       <div class="preset-buttons">
-        <button class="preset-btn" onclick="loadPreset('preset_1')">
+        <button class="preset-btn glass-btn" onclick="loadPreset('preset_1')">
           <span class="p-dot red"></span> Heart + Gastric Block
         </button>
-        <button class="preset-btn" onclick="loadPreset('preset_2')">
+        <button class="preset-btn glass-btn" onclick="loadPreset('preset_2')">
           <span class="p-dot amber"></span> Antibiotic + Dairy
         </button>
-        <button class="preset-btn" onclick="loadPreset('preset_3')">
+        <button class="preset-btn glass-btn" onclick="loadPreset('preset_3')">
           <span class="p-dot red"></span> BP + Double NSAID
         </button>
-        <button class="preset-btn" onclick="loadPreset('preset_4')">
+        <button class="preset-btn glass-btn" onclick="loadPreset('preset_4')">
           <span class="p-dot amber"></span> Statin + Diet Clash
         </button>
       </div>
     </div>
 
     <!-- PERSISTENT RELATE STORE BADGE -->
-    <div class="store-badge" title="Relate by Neo4j In-Process Single-File Database">
+    <div class="store-badge glass-badge" title="Relate by Neo4j In-Process Single-File Database">
       <span class="pulse-indicator"></span>
       <div class="badge-content">
         <span class="engine-title">Relate Single-File Store</span>
@@ -61,47 +70,47 @@
   <main class="dashboard-grid">
 
     <!-- LEFT COLUMN: PATIENT REGIMEN BUILDER & SYMPTOM TRACER -->
-    <section class="panel panel-left">
+    <section class="panel panel-left glass-panel">
       <div class="panel-header">
         <div class="panel-title-group">
           <h2>Patient Profile</h2>
           <span class="panel-sub">Active Regimen & Tracing</span>
         </div>
-        <button class="btn-clear-all" onclick="clearAllSelections()" title="Reset All Selections">Clear All</button>
+        <button class="btn-clear-all glass-btn-sm" onclick="clearAllSelections()" title="Reset All Selections">Clear All</button>
       </div>
 
       <div class="panel-content">
         
         <!-- AUTOCOMPLETE SELECTORS (NO CLUTTERED LISTS) -->
-        <div class="regimen-selector-box">
+        <div class="regimen-selector-box glass-card">
           <label class="control-label">Add to Patient Regimen</label>
           
           <!-- MEDICINE PICKER -->
           <div class="dropdown-wrapper">
-            <input type="text" id="medSearchInput" class="select-search-input" placeholder="+ Add Medication (Brand or Generic)..." autocomplete="off">
-            <div id="medDropdown" class="autocomplete-dropdown" style="display: none;"></div>
+            <input type="text" id="medSearchInput" class="select-search-input glass-input" placeholder="+ Add Medication (Brand or Generic)..." autocomplete="off">
+            <div id="medDropdown" class="autocomplete-dropdown glass-dropdown" style="display: none;"></div>
           </div>
 
           <!-- FOOD & SUPPLEMENT PICKER -->
           <div class="dropdown-wrapper">
-            <select id="foodSelectPicker" class="custom-select" onchange="handleAddFood(this.value)">
+            <select id="foodSelectPicker" class="custom-select glass-input" onchange="handleAddFood(this.value)">
               <option value="">+ Add Dietary Intake / Supplement...</option>
             </select>
           </div>
 
           <!-- CONDITION PICKER -->
           <div class="dropdown-wrapper">
-            <select id="condSelectPicker" class="custom-select" onchange="handleAddCondition(this.value)">
+            <select id="condSelectPicker" class="custom-select glass-input" onchange="handleAddCondition(this.value)">
               <option value="">+ Add Chronic Health Condition...</option>
             </select>
           </div>
         </div>
 
         <!-- ACTIVE SELECTED ITEMS CHIPS -->
-        <div class="active-items-card">
+        <div class="active-items-card glass-card">
           <div class="active-items-header">
             <span class="active-title">Active Regimen Items</span>
-            <span class="active-count-badge" id="activeItemsCount">0 items</span>
+            <span class="active-count-badge glass-pill" id="activeItemsCount">0 items</span>
           </div>
           
           <div id="selectedChipsContainer" class="chips-container">
@@ -112,7 +121,7 @@
         </div>
 
         <!-- REVERSE SYMPTOM TRACER -->
-        <div class="tracer-card">
+        <div class="tracer-card glass-card">
           <div class="tracer-header">
             <div class="tracer-title-row">
               <span class="tracer-icon">🩺</span>
@@ -125,20 +134,20 @@
           <p class="tracer-prompt">Traverses backwards along <code>(:Symptom)&larr;[:CAN_CAUSE]&ndash;(:Ingredient)&larr;[:CONTAINS]&ndash;(:Medicine)</code> to find which active drug is causing your symptom.</p>
           
           <div class="tracer-controls">
-            <select id="symptomSelect" class="custom-select symptom-select">
+            <select id="symptomSelect" class="custom-select glass-input symptom-select">
               <option value="">-- Choose Adverse Symptom --</option>
             </select>
-            <button class="btn-run-trace" onclick="traceSymptom()">Trace Cause</button>
+            <button class="btn-run-trace glass-btn-primary" onclick="traceSymptom()">Trace Cause</button>
           </div>
 
-          <div id="traceResultBox" class="trace-output-card" style="display: none;"></div>
+          <div id="traceResultBox" class="trace-output-card glass-alert-card" style="display: none;"></div>
         </div>
 
       </div>
     </section>
 
     <!-- CENTER COLUMN: CLEAN LEFT-TO-RIGHT PATHWAY DIAGRAM -->
-    <section class="panel panel-center">
+    <section class="panel panel-center glass-panel">
       <div class="panel-header">
         <div class="panel-title-group">
           <h2>Pharmacological Pathway Diagram</h2>
@@ -156,8 +165,32 @@
       </div>
 
       <div class="pathway-canvas-container" id="pathwayCanvas">
-        <!-- SVG CONNECTOR PATHS LAYER -->
-        <svg id="pathwaySvg" class="pathway-svg-layer"></svg>
+        <!-- SVG CONNECTOR PATHS LAYER WITH GLOW FILTERS -->
+        <svg id="pathwaySvg" class="pathway-svg-layer">
+          <defs>
+            <filter id="glow-red" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="3.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="glow-green" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="3.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="glow-amber" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="3.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+        </svg>
 
         <!-- 4 CLEAN VERTICAL COLUMNS -->
         <div class="pathway-columns-grid">
@@ -189,23 +222,23 @@
         </div>
 
         <!-- EMPTY STATE MESSAGE -->
-        <div id="pathwayEmptyState" class="pathway-empty-card" style="display: none;">
+        <div id="pathwayEmptyState" class="pathway-empty-card glass-card" style="display: none;">
           <div class="empty-icon">🌱</div>
           <h3>Select patient medications or choose a clinical preset</h3>
           <p>Relate will traverse the multi-hop Cypher pathways in real time and render a structured left-to-right flow chart.</p>
         </div>
 
         <!-- ALL CLEAR STATE -->
-        <div id="pathwaySafeState" class="pathway-safe-card" style="display: none;">
+        <div id="pathwaySafeState" class="pathway-safe-card glass-card" style="display: none;">
           <div class="safe-icon">✅</div>
-          <h3>All Clear · No Pathway Collisions Detected</h3>
+          <h3>All Clear &middot; No Pathway Collisions Detected</h3>
           <p>No enzyme blocks, double-dose overlaps, or food chelation conflicts detected among the selected items.</p>
         </div>
       </div>
     </section>
 
     <!-- RIGHT COLUMN: RISKS, ROUTINE, ORGAN STRESS & CYPHER REPL -->
-    <section class="panel panel-right">
+    <section class="panel panel-right glass-panel">
       
       <!-- 4 EQUAL-WIDTH TABS (ZERO HORIZONTAL SCROLL) -->
       <nav class="tabs-bar">
@@ -221,7 +254,7 @@
         <div id="doubleDoseContainer"></div>
 
         <!-- PATHWAY WARNINGS -->
-        <div class="card-group">
+        <div class="card-group glass-card">
           <div class="card-group-header">
             <h3 class="card-group-title">Clinical Interaction Warnings</h3>
             <span class="count-tag" id="warningsCountBadge">0 alerts</span>
@@ -232,7 +265,7 @@
         </div>
 
         <!-- SAFE ALTERNATIVES -->
-        <div class="card-group">
+        <div class="card-group glass-card">
           <div class="card-group-header">
             <h3 class="card-group-title safe-title">Recommended Safe Swaps</h3>
             <span class="count-tag safe-tag" id="altsCountBadge">0 options</span>
@@ -245,10 +278,10 @@
 
       <!-- TAB 2: SMART 5-SLOT DAILY ROUTINE -->
       <div id="tabSchedule" class="tab-content">
-        <div class="card-group">
+        <div class="card-group glass-card">
           <div class="card-group-header">
             <h3 class="card-group-title">5-Slot Medication Schedule</h3>
-            <span class="info-pill">Optimized by Relate</span>
+            <span class="info-pill glass-pill">Optimized by Relate</span>
           </div>
           <p class="tab-instruction">Arranged automatically using graph properties (<code>take_with_food</code>, <code>min_gap_hours</code>) to ensure proper spacing.</p>
           <div id="scheduleTimeline" class="routine-timeline">
@@ -259,10 +292,10 @@
 
       <!-- TAB 3: CUMULATIVE ORGAN LOAD -->
       <div id="tabOrgan" class="tab-content">
-        <div class="card-group">
+        <div class="card-group glass-card">
           <div class="card-group-header">
             <h3 class="card-group-title">Cumulative Organ Stress</h3>
-            <span class="info-pill">Aggregated Score</span>
+            <span class="info-pill glass-pill">Aggregated Score</span>
           </div>
           <p class="tab-instruction">Sum of physiological <code>load_score</code> properties across all active ingredients.</p>
 
@@ -298,7 +331,7 @@
             <div class="meter-track"><div id="barBrain" class="meter-fill" style="width: 0%;"></div></div>
           </div>
 
-          <div id="organAssessmentCard" class="organ-assessment-box">
+          <div id="organAssessmentCard" class="organ-assessment-box glass-card-sm">
             Select medications to calculate cumulative physiological burden.
           </div>
         </div>
@@ -306,7 +339,7 @@
 
       <!-- TAB 4: LIVE CYPHER QUERY INSPECTOR -->
       <div id="tabCypher" class="tab-content">
-        <div class="card-group">
+        <div class="card-group glass-card">
           <div class="card-group-header">
             <h3 class="card-group-title">Relate Cypher Inspector</h3>
             <span class="mono-badge">./data/safemeds.rl</span>
@@ -314,14 +347,14 @@
           <p class="tab-instruction">Run custom openCypher queries directly against the in-process persistent Relate database.</p>
 
           <div class="cypher-repl-box">
-            <textarea id="replInput" class="repl-editor" rows="3" placeholder="MATCH (m:Medicine)-[:CONTAINS]->(i:Ingredient) RETURN m.name, i.name LIMIT 8;"></textarea>
+            <textarea id="replInput" class="repl-editor glass-input" rows="3" placeholder="MATCH (m:Medicine)-[:CONTAINS]->(i:Ingredient) RETURN m.name, i.name LIMIT 8;"></textarea>
             <div class="repl-btn-row">
-              <button class="btn-run-cypher" onclick="runCustomCypher()">Execute Cypher</button>
-              <button class="btn-sample-cypher" onclick="insertSampleCypher()">Sample Query</button>
+              <button class="btn-run-cypher glass-btn-primary" onclick="runCustomCypher()">Execute Cypher</button>
+              <button class="btn-sample-cypher glass-btn-sm" onclick="insertSampleCypher()">Sample Query</button>
             </div>
           </div>
 
-          <div id="replOutputArea" class="repl-output" style="display: none;"></div>
+          <div id="replOutputArea" class="repl-output glass-card-sm" style="display: none;"></div>
 
           <div class="recent-queries-section">
             <span class="recent-label">Executed in Last Analysis:</span>
