@@ -1,23 +1,34 @@
-# Python artifacts
-__pycache__/
-*.py[cod]
-*$py.class
-*.env
+# Environment and Virtualenvs
 .venv/
 env/
 venv/
+*.env
 
-# Antigravity artifacts
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Test databases and scratch data
 test_db/
 
-# Video Pipeline Temp Files
-output/raw_video/
-output/*.webm
-output/*_assembly_*.mp4
-output/*_capture_*.mp4
-output/*.wav
-output/*.aac
+# Generated Media and Video Pipeline Artifacts
+output/
+*.mp4
+*.webm
+*.mp3
+*.wav
+*.aac
 
-# IMPORTANT: Ensure the persistent Relate database is tracked
+# Whitelisted Core Assets
 !data/
 !data/safemeds.rl
+!docs/
+!docs/screenshots/
+!docs/screenshots/*.png
