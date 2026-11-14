@@ -1,6 +1,7 @@
 // ==========================================================================
 // SafeMeds — Studio-Grade 3D Pharmaceutical Interactive Dashboard (Three.js)
 // Sky-Blue, Deep Royal Blue, Crisp White & Bright Yellow Visual Experience
+// Full-Viewport Edge-to-Edge 3D World with Floating Frosted-Glass Interface
 // Connected to In-Process Persistent Relate by Neo4j Database (./data/safemeds.rl)
 // ==========================================================================
 
@@ -21,21 +22,23 @@ let previousRegimenState = null;
 let scene, camera, renderer, controls;
 let threeObjects = []; // 3D node meshes & metadata
 let pathwayTubes = []; // 3D pathway curves
-let energyPulses = []; // Animated energy spheres
+let energyPulses = []; // Animated glowing energy spheres
 let lightRibbons = []; // Background drifting ribbons
-let canvasContainer = null;
+let bokehParticles = null; // 40-60 ambient drifting light motes
 let raycaster, mouse;
 
 // Camera Animation State
 let cameraTargetPos = null;
 let controlsTargetPos = null;
-let currentAutoFrameZ = 19.5;
+let currentAutoFrameZ = 22.0;
 let currentHighlightedNode = null;
 let lastAgentSwapAction = null;
 
+// Corridor center offset (-0.35 to balance left 310px vs right 390px panels)
+const CORRIDOR_CENTER_X = -0.35;
+
 // Initialize on DOM Ready
 document.addEventListener('DOMContentLoaded', async () => {
-  canvasContainer = document.getElementById('centerStageWrapper');
   initThreeStage();
   setupAutocomplete();
   setupEventListeners();
@@ -51,19 +54,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ==========================================================================
-// 1. THREE.JS 3D STAGE SETUP
+// 1. THREE.JS FULL-VIEWPORT 3D WORLD SETUP (100VW x 100VH)
 // ==========================================================================
 function initThreeStage() {
   const canvas = document.getElementById('webglCanvas');
-  const width = canvasContainer.clientWidth || 800;
-  const height = canvasContainer.clientHeight || 600;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
 
   // Scene
   scene = new THREE.Scene();
 
   // Camera with auto-frame Z
   camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-  camera.position.set(0, 0, currentAutoFrameZ);
+  camera.position.set(CORRIDOR_CENTER_X, 0, currentAutoFrameZ);
 
   // Renderer
   renderer = new THREE.WebGLRenderer({
@@ -82,30 +85,33 @@ function initThreeStage() {
   controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
-  controls.maxDistance = 38;
-  controls.minDistance = 5;
+  controls.maxDistance = 42;
+  controls.minDistance = 6;
   controls.maxPolarAngle = Math.PI * 0.88;
   controls.minPolarAngle = Math.PI * 0.12;
-  controls.target.set(0, 0, 0);
+  controls.target.set(CORRIDOR_CENTER_X, 0, 0);
 
   // 3-Point Studio Lighting
   const hemiLight = new THREE.HemisphereLight(0xFFFFFF, 0x0B3D91, 0.95);
   scene.add(hemiLight);
 
   const keyLight = new THREE.DirectionalLight(0xFFFFFF, 1.5);
-  keyLight.position.set(9, 14, 12);
+  keyLight.position.set(10, 15, 12);
   scene.add(keyLight);
 
-  const rimLight = new THREE.DirectionalLight(0x38BDF8, 1.15);
-  rimLight.position.set(-12, -6, -10);
+  const rimLight = new THREE.DirectionalLight(0x38BDF8, 1.2);
+  rimLight.position.set(-14, -6, -10);
   scene.add(rimLight);
 
-  const fillLight = new THREE.DirectionalLight(0xFDE047, 0.35);
-  fillLight.position.set(0, -9, 8);
+  const fillLight = new THREE.DirectionalLight(0xFDE047, 0.38);
+  fillLight.position.set(0, -10, 8);
   scene.add(fillLight);
 
   // Ambient Drifting Light Stream Ribbons in Background
   createLightStreamRibbons();
+
+  // 40–60 Soft-Drifting Bokeh Light Motes in Background
+  createBokehParticles();
 
   // Raycaster for 3D interactions
   raycaster = new THREE.Raycaster();
@@ -117,9 +123,9 @@ function initThreeStage() {
 }
 
 function onWindowResize() {
-  if (!canvasContainer || !camera || !renderer) return;
-  const width = canvasContainer.clientWidth;
-  const height = canvasContainer.clientHeight;
+  if (!camera || !renderer) return;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
   renderer.setSize(width, height);
@@ -130,30 +136,76 @@ function createLightStreamRibbons() {
   const ribbonColors = [0x38BDF8, 0xBAE6FD, 0x0284C7];
   for (let i = 0; i < 3; i++) {
     const points = [];
-    const baseY = (i - 1) * 4;
-    for (let x = -15; x <= 15; x += 3.5) {
+    const baseY = (i - 1) * 4.2;
+    for (let x = -18; x <= 18; x += 4.0) {
       points.push(new THREE.Vector3(
         x,
-        baseY + Math.sin(x * 0.35 + i) * 2.2,
-        -4.8 - i * 0.8
+        baseY + Math.sin(x * 0.32 + i) * 2.5,
+        -5.5 - i * 0.8
       ));
     }
     const curve = new THREE.CatmullRomCurve3(points);
-    const geom = new THREE.TubeGeometry(curve, 64, 0.055, 8, false);
+    const geom = new THREE.TubeGeometry(curve, 64, 0.065, 8, false);
     const mat = new THREE.MeshBasicMaterial({
       color: ribbonColors[i % ribbonColors.length],
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.30,
       blending: THREE.AdditiveBlending
     });
     const ribbon = new THREE.Mesh(geom, mat);
     scene.add(ribbon);
-    lightRibbons.push({ mesh: ribbon, speed: (i + 1) * 0.0015 });
+    lightRibbons.push({ mesh: ribbon, speed: (i + 1) * 0.0014 });
   }
 }
 
+// 40–60 Soft-Drifting Bokeh Light Motes Floating in Distant 3D Background
+function createBokehParticles() {
+  const count = 55;
+  const geom = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const speeds = [];
+
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = (Math.random() - 0.5) * 38;
+    positions[i * 3 + 1] = (Math.random() - 0.5) * 24;
+    positions[i * 3 + 2] = -4.5 - Math.random() * 8.0;
+    speeds.push({
+      y: 0.004 + Math.random() * 0.007,
+      x: (Math.random() - 0.5) * 0.003,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+  geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+  // Soft glowing radial texture
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 64;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+  g.addColorStop(0.35, 'rgba(186, 230, 253, 0.65)');
+  g.addColorStop(0.8, 'rgba(56, 189, 248, 0.2)');
+  g.addColorStop(1, 'rgba(2, 132, 199, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  const texture = new THREE.CanvasTexture(c);
+
+  const mat = new THREE.PointsMaterial({
+    size: 1.4,
+    map: texture,
+    transparent: true,
+    opacity: 0.6,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+
+  const points = new THREE.Points(geom, mat);
+  scene.add(points);
+  bokehParticles = { mesh: points, speeds: speeds, count: count };
+}
+
 // ==========================================================================
-// 2. PROCEDURAL 3D PHARMACEUTICAL MODELS (Studio Physical Materials)
+// 2. PROCEDURAL 3D PHARMACEUTICAL MODELS (MeshPhysicalMaterial)
 // ==========================================================================
 
 // A. 3D Medicine Capsule (Upper Pharma Blue, Lower Pearl White, Metallic Seam)
@@ -214,7 +266,7 @@ function createMedicineCapsule(name, isBrand) {
   return group;
 }
 
-// B. 3D Dietary Amber Dropper Bottle with Liquid Core
+// B. 3D Dietary Amber Dropper Bottle with Colored Liquid Core
 function createFoodDropper(name) {
   const group = new THREE.Group();
 
@@ -304,7 +356,7 @@ function createConditionShield(name) {
   return group;
 }
 
-// D. 3D Active Molecule Cluster (Pearl-Cyan Core with Orbiting Electron Spheres)
+// D. 3D Active Molecule Cluster (Pearl-Cyan Core with Orbiting Electron Spheres & Rings)
 function createMolecularCluster(name) {
   const group = new THREE.Group();
 
@@ -327,9 +379,25 @@ function createMolecularCluster(name) {
     roughness: 0.2
   });
 
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0xBAE6FD,
+    transparent: true,
+    opacity: 0.35,
+    wireframe: true
+  });
+
   // Central Sphere
   const core = new THREE.Mesh(new THREE.SphereGeometry(0.38, 24, 24), coreMat);
   group.add(core);
+
+  // Orbiting Electron Rings
+  const orbitRing1 = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.012, 16, 48), ringMat);
+  orbitRing1.rotation.x = Math.PI / 3;
+  group.add(orbitRing1);
+
+  const orbitRing2 = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.012, 16, 48), ringMat);
+  orbitRing2.rotation.y = Math.PI / 3;
+  group.add(orbitRing2);
 
   // Orbiting Atoms
   const bondOrbitGroup = new THREE.Group();
@@ -466,7 +534,7 @@ function createSafeAlternativeCapsule(name) {
 }
 
 // ==========================================================================
-// 3. ZERO-HAIRBALL 4-LANE 3D ARCHITECTURE (AUTO-FRAMED)
+// 3. ZERO-HAIRBALL 4-LANE 3D ARCHITECTURE (CENTER-CORRIDOR FRAMING)
 // ==========================================================================
 function clearThreeStage() {
   threeObjects.forEach(obj => scene.remove(obj.mesh));
@@ -560,15 +628,15 @@ function renderThreeStage(data) {
     if (notice) notice.style.display = 'none';
   }
 
-  // DYNAMIC CAMERA AUTO-FRAMING: Compute max nodes and dynamic Z
+  // DYNAMIC CAMERA AUTO-FRAMING: Generous vertical Y-spacing and camera Z distance
   const maxNodesInCol = Math.max(col1Nodes.length, col2Nodes.length, col3Items.length, col4Alts.length, 1);
-  currentAutoFrameZ = Math.max(19.5, 14.0 + maxNodesInCol * 1.6);
-  
-  // Smoothly position camera overview
-  cameraTargetPos = new THREE.Vector3(0, 0, currentAutoFrameZ);
-  controlsTargetPos = new THREE.Vector3(0, 0, 0);
+  currentAutoFrameZ = Math.max(21.0, 14.5 + maxNodesInCol * 1.7);
 
-  // 1. Position Column 1: Intake (X = -7.5)
+  // Smoothly position camera centered in open corridor
+  cameraTargetPos = new THREE.Vector3(CORRIDOR_CENTER_X, 0, currentAutoFrameZ);
+  controlsTargetPos = new THREE.Vector3(CORRIDOR_CENTER_X, 0, 0);
+
+  // 1. Position Column 1: Intake (X = -5.8)
   col1Nodes.forEach((node, i) => {
     let mesh;
     if (node.label === 'Medicine') mesh = createMedicineCapsule(node.title, node.category?.includes('Brand'));
@@ -576,34 +644,34 @@ function renderThreeStage(data) {
     else mesh = createConditionShield(node.title);
 
     const y = calculateYPosition(i, col1Nodes.length, maxNodesInCol);
-    mesh.position.set(-7.5, y, Math.sin(i) * 0.4);
+    mesh.position.set(-5.8, y, Math.sin(i) * 0.35);
     scene.add(mesh);
     registerThreeNode(mesh, node.title, node.label, 1);
   });
 
-  // 2. Position Column 2: Ingredients (X = -2.5)
+  // 2. Position Column 2: Ingredients (X = -2.0)
   col2Nodes.forEach((node, i) => {
     const mesh = createMolecularCluster(node.title);
     const y = calculateYPosition(i, col2Nodes.length, maxNodesInCol);
-    mesh.position.set(-2.5, y, Math.cos(i) * 0.4);
+    mesh.position.set(-2.0, y, Math.cos(i) * 0.35);
     scene.add(mesh);
     registerThreeNode(mesh, node.title, 'Ingredient', 2);
   });
 
-  // 3. Position Column 3: Conflicts / Enzyme Blocks (X = +2.5)
+  // 3. Position Column 3: Conflicts / Enzyme Blocks (X = +1.6)
   col3Items.forEach((item, i) => {
     const mesh = createConflictCrystal(item.title, item.isAmber);
     const y = calculateYPosition(i, col3Items.length, maxNodesInCol);
-    mesh.position.set(2.5, y, Math.sin(i + 1) * 0.4);
+    mesh.position.set(1.6, y, Math.sin(i + 1) * 0.35);
     scene.add(mesh);
     registerThreeNode(mesh, item.title, item.isAmber ? 'Time-Spacing' : 'Conflict', 3);
   });
 
-  // 4. Position Column 4: Safe Alternatives (X = +7.5)
+  // 4. Position Column 4: Safe Alternatives (X = +5.2)
   col4Alts.forEach((alt, i) => {
     const mesh = createSafeAlternativeCapsule(alt.alternative);
     const y = calculateYPosition(i, col4Alts.length, maxNodesInCol);
-    mesh.position.set(7.5, y, Math.cos(i + 2) * 0.4);
+    mesh.position.set(5.2, y, Math.cos(i + 2) * 0.35);
     scene.add(mesh);
     registerThreeNode(mesh, alt.alternative, 'Safe Alternative', 4);
   });
@@ -614,7 +682,8 @@ function renderThreeStage(data) {
 
 function calculateYPosition(index, total, maxNodesInCol) {
   if (total <= 1) return 0;
-  const spacing = Math.min(2.0, 7.2 / Math.max(1, maxNodesInCol - 1));
+  // Generous spacing (at least 2.45 units) ensures Atorvastatin label never touches Warfarin capsule
+  const spacing = Math.max(2.45, 9.8 / Math.max(1, maxNodesInCol - 1));
   return ((total - 1) / 2 - index) * spacing;
 }
 
@@ -647,7 +716,10 @@ function registerThreeNode(mesh, title, category, colIndex) {
     title: title,
     category: category,
     colIndex: colIndex,
-    labelEl: labelDiv
+    labelEl: labelDiv,
+    basePos: mesh.position.clone(),
+    baseRot: mesh.rotation.clone(),
+    floatPhase: threeObjects.length * 0.85
   });
 }
 
@@ -682,11 +754,18 @@ function buildPathwayTubes(data, col3Items, col4Alts) {
     scene.add(tubeMesh);
     pathwayTubes.push({ mesh: tubeMesh, src: srcObj, tgt: tgtObj, curve: curve });
 
-    // Moving Glowing Energy Pulse Bead
-    const pulseMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
-    const pulseMesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 12), pulseMat);
-    scene.add(pulseMesh);
-    energyPulses.push({ mesh: pulseMesh, curve: curve, t: Math.random(), speed: 0.007 + Math.random() * 0.004 });
+    // 2 Flowing Light Particles along every tube
+    for (let b = 0; b < 2; b++) {
+      const pulseMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+      const pulseMesh = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 12), pulseMat);
+      scene.add(pulseMesh);
+      energyPulses.push({
+        mesh: pulseMesh,
+        curve: curve,
+        t: (b * 0.5 + Math.random() * 0.2) % 1.0,
+        speed: 0.0065 + Math.random() * 0.003
+      });
+    }
   }
 
   const col1 = threeObjects.filter(o => o.colIndex === 1);
@@ -731,7 +810,7 @@ function isPharmacologicalPair(med, ing) {
 }
 
 // ==========================================================================
-// 5. ANIMATION LOOP, CAMERA LERP & PROJECTION
+// 5. ANIMATION LOOP, CONTINUOUS LIVING MOTION & CAMERA LERP
 // ==========================================================================
 function animateStage() {
   requestAnimationFrame(animateStage);
@@ -753,28 +832,41 @@ function animateStage() {
   // Orbit controls update
   controls.update();
 
-  // Gentle floating bob & rotation on models
-  threeObjects.forEach((obj, idx) => {
+  // CONTINUOUS LIVING 3D MOTION: Staggered sinusoidal float and axial sway
+  threeObjects.forEach(obj => {
     const mesh = obj.mesh;
-    mesh.position.y += Math.sin(time * 2 + idx) * 0.0015;
+    const phase = obj.floatPhase;
+
+    mesh.position.y = obj.basePos.y + Math.sin(time * 1.4 + phase) * 0.12;
+    mesh.rotation.y = obj.baseRot.y + Math.sin(time * 0.8 + phase) * 0.08;
+    mesh.rotation.z = obj.baseRot.z + Math.cos(time * 0.7 + phase) * 0.05;
 
     // Molecular electron orbits
     if (mesh.userData.orbit) {
-      mesh.userData.orbit.rotation.z += 0.015;
+      mesh.userData.orbit.rotation.z += 0.018;
+      mesh.userData.orbit.rotation.x += 0.012;
     }
-    // Dual Counter-Rotating Gyro Rings on Conflict Point
+
+    // Heartbeat conflict pulse & counter-rotating gyro rings
     if (mesh.userData.outerGyro && mesh.userData.innerGyro) {
-      mesh.userData.outerGyro.rotation.z += 0.022;
-      mesh.userData.innerGyro.rotation.z -= 0.028;
-      if (mesh.userData.crystal) mesh.userData.crystal.rotation.y += 0.012;
+      mesh.userData.outerGyro.rotation.z += 0.024;
+      mesh.userData.innerGyro.rotation.z -= 0.030;
+      mesh.userData.outerGyro.rotation.y += 0.012;
+      if (mesh.userData.crystal) {
+        mesh.userData.crystal.rotation.y += 0.014;
+        const pulse = 0.45 + Math.sin(time * 3.5) * 0.28;
+        mesh.userData.crystal.material.emissiveIntensity = pulse;
+      }
     }
+
     // Safe alternative glowing halo ring
     if (mesh.userData.safetyRing) {
-      mesh.userData.safetyRing.rotation.z += 0.018;
+      mesh.userData.safetyRing.rotation.z += 0.020;
     }
+
     // Condition shield inner core pulse
     if (mesh.userData.innerCore) {
-      mesh.userData.innerCore.rotation.y += 0.02;
+      mesh.userData.innerCore.rotation.y += 0.022;
     }
   });
 
@@ -783,7 +875,23 @@ function animateStage() {
     r.mesh.rotation.z += r.speed;
   });
 
-  // Animate energy pulses along curves
+  // Drifting Bokeh Particles in distant background
+  if (bokehParticles) {
+    const posAttr = bokehParticles.mesh.geometry.attributes.position;
+    const posArr = posAttr.array;
+    for (let i = 0; i < bokehParticles.count; i++) {
+      const sp = bokehParticles.speeds[i];
+      posArr[i * 3 + 1] += sp.y;
+      posArr[i * 3] += Math.sin(time * 0.5 + sp.phase) * 0.003;
+      if (posArr[i * 3 + 1] > 12) {
+        posArr[i * 3 + 1] = -12;
+        posArr[i * 3] = (Math.random() - 0.5) * 38;
+      }
+    }
+    posAttr.needsUpdate = true;
+  }
+
+  // Animate flowing light pulses along pathway curves
   energyPulses.forEach(p => {
     p.t = (p.t + p.speed) % 1.0;
     const pt = p.curve.getPointAt(p.t);
@@ -798,13 +906,13 @@ function animateStage() {
 }
 
 function updateProjectedLabels() {
-  if (!canvasContainer || !camera) return;
-  const width = canvasContainer.clientWidth;
-  const height = canvasContainer.clientHeight;
+  if (!camera) return;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
 
   threeObjects.forEach(obj => {
     const pos = obj.mesh.position.clone();
-    pos.y -= 0.65; // Position pill directly below 3D model
+    pos.y -= 0.58; // Compact spacing directly below 3D model
     pos.project(camera);
 
     // Behind camera check
@@ -823,14 +931,13 @@ function updateProjectedLabels() {
 }
 
 function onCanvasClick(event) {
-  // If clicked inside agent command bar or other overlays, ignore
-  if (event.target.closest('.agent-command-container') || event.target.closest('.floating-stage-controls') || event.target.closest('.node-projected-label')) {
+  // If clicked inside floating panels, agent command bar, or labels, ignore
+  if (event.target.closest('.side-panel') || event.target.closest('.top-nav') || event.target.closest('.agent-command-container') || event.target.closest('.floating-stage-controls') || event.target.closest('.node-projected-label')) {
     return;
   }
 
-  const rect = canvasContainer.getBoundingClientRect();
-  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
   raycaster.setFromCamera(mouse, camera);
   const meshes = threeObjects.map(o => o.mesh);
@@ -918,8 +1025,8 @@ function focusOnNode(nodeTitle) {
 
 function resetCameraView() {
   currentHighlightedNode = null;
-  cameraTargetPos = new THREE.Vector3(0, 0, currentAutoFrameZ);
-  controlsTargetPos = new THREE.Vector3(0, 0, 0);
+  cameraTargetPos = new THREE.Vector3(CORRIDOR_CENTER_X, 0, currentAutoFrameZ);
+  controlsTargetPos = new THREE.Vector3(CORRIDOR_CENTER_X, 0, 0);
 
   // Restore all opacities to 100%
   threeObjects.forEach(obj => {
@@ -1024,7 +1131,7 @@ function updateKeyActionBanner(data) {
   }
 
   if (activePresetId === 'preset_4' || (selectedMedicines.has('Atorvastatin') && selectedFoods.has('Grapefruit Juice'))) {
-    actionText.textContent = "KEY ACTION: Stop Grapefruit Juice immediately (inhibits CYP3A4, causing toxic statin accumulation and rhabdomyolysis muscle breakdown).";
+    actionText.textContent = "KEY ACTION: Avoid Grapefruit Juice completely (inhibits CYP3A4, causing toxic statin accumulation and acute rhabdomyolysis muscle damage).";
     banner.style.display = 'block';
     return;
   }
@@ -1083,7 +1190,7 @@ async function triggerAnalysis() {
 }
 
 // ==========================================================================
-// 8. RIGHT PANEL RENDERERS & ONE-CLICK APPLY SAFE SWAP
+// 8. RIGHT PANEL RENDERERS & ANIMATED APPLY SAFE SWAP
 // ==========================================================================
 
 // A. Clinical Warnings & Safe Swaps (Red 'X' Badges + One-Click Apply Safe Swap)
@@ -1161,7 +1268,7 @@ function renderClinicalWarnings(warnings, brandOverlaps, safeAlts) {
   }
 }
 
-// B. One-Click "Apply Safe Swap" Handler
+// B. Live Animated "Apply Safe Swap" Handler
 async function applySafeSwap(targetMed, altMed, condition) {
   // Store previous regimen state for Undo
   previousRegimenState = {
@@ -1170,16 +1277,45 @@ async function applySafeSwap(targetMed, altMed, condition) {
     conditions: Array.from(selectedConditions)
   };
 
-  // Perform swap in active regimen
+  // 1. Live 3D animation: Outgoing conflicting 3D capsule shrinks down and fades
+  const outgoingObj = threeObjects.find(o => o.title === targetMed);
+  const conflictObj = threeObjects.find(o => o.category.includes('Conflict'));
+
+  if (outgoingObj) {
+    outgoingObj.mesh.scale.set(0.2, 0.2, 0.2);
+    setObjectOpacity(outgoingObj.mesh, 0.2);
+  }
+  if (conflictObj) {
+    conflictObj.mesh.scale.set(0.1, 0.1, 0.1);
+    setObjectOpacity(conflictObj.mesh, 0.1);
+  }
+
+  // 2. Perform swap in active regimen
   selectedMedicines.delete(targetMed);
   selectedMedicines.add(altMed);
 
   updateChipsUI();
 
-  // Re-run analysis against Relate database
+  // 3. Re-run analysis against Relate database
   await triggerAnalysis();
 
-  // Display celebration banner
+  // 4. Entrance spring animation on the new safe alternative capsule
+  const newSafeObj = threeObjects.find(o => o.title === altMed);
+  if (newSafeObj) {
+    newSafeObj.mesh.scale.set(0.2, 0.2, 0.2);
+    let scaleStep = 0.2;
+    const entranceTimer = setInterval(() => {
+      scaleStep += 0.2;
+      if (scaleStep >= 1.0) {
+        newSafeObj.mesh.scale.set(1.0, 1.0, 1.0);
+        clearInterval(entranceTimer);
+      } else {
+        newSafeObj.mesh.scale.set(scaleStep, scaleStep, scaleStep);
+      }
+    }, 25);
+  }
+
+  // 5. Display celebration banner
   const banner = document.getElementById('swapSuccessBanner');
   const bannerText = document.getElementById('swapSuccessText');
   if (banner && bannerText) {
@@ -1187,7 +1323,7 @@ async function applySafeSwap(targetMed, altMed, condition) {
     banner.style.display = 'flex';
   }
 
-  // Smoothly fly camera to new safe alternative in 3D
+  // 6. Smoothly fly camera to new safe alternative in 3D
   focusOnNode(altMed);
 }
 
@@ -1405,7 +1541,7 @@ function insertSampleCypher() {
 }
 
 // ==========================================================================
-// 10. ASK SAFEMEDS AGENT (ZERO-API-KEY LOCAL NATURAL LANGUAGE ENGINE)
+// 10. ASK SAFEMEDS AGENT WITH INTERACTIVE 3D GRAPH SCAN WAVE
 // ==========================================================================
 async function handleAgentSubmit(event) {
   if (event) event.preventDefault();
@@ -1421,6 +1557,64 @@ async function askAgentPrompt(promptText) {
   await executeAgentQuery(promptText);
 }
 
+// Interactive 3D Scan Wave: Pulsing across nodes and tubes (~450ms)
+function triggerGraphScanWave(onComplete) {
+  const startTime = performance.now();
+  const duration = 450;
+
+  function updateScan() {
+    const elapsed = performance.now() - startTime;
+    const progress = Math.min(1.0, elapsed / duration);
+    const scanX = -7.5 + progress * 15.0; // sweeps left-to-right from -7.5 to +7.5
+
+    // Pulse nodes as wave sweeps past
+    threeObjects.forEach(obj => {
+      const dist = Math.abs(obj.mesh.position.x - scanX);
+      if (dist < 1.8) {
+        const factor = 1.0 - (dist / 1.8);
+        obj.mesh.scale.setScalar(1.0 + factor * 0.16);
+        obj.mesh.traverse(child => {
+          if (child.isMesh && child.material && child.material.emissive) {
+            child.material.emissiveIntensity = 0.5 + factor * 0.7;
+          }
+        });
+      } else {
+        obj.mesh.scale.setScalar(1.0);
+      }
+    });
+
+    // Flash tubes
+    pathwayTubes.forEach(t => {
+      const midX = (t.src.mesh.position.x + t.tgt.mesh.position.x) * 0.5;
+      const dist = Math.abs(midX - scanX);
+      if (dist < 2.0) {
+        t.mesh.material.emissiveIntensity = 0.95;
+      } else {
+        t.mesh.material.emissiveIntensity = 0.55;
+      }
+    });
+
+    if (progress < 1.0) {
+      requestAnimationFrame(updateScan);
+    } else {
+      // Wave complete: restore normal scales and intensities
+      threeObjects.forEach(obj => {
+        obj.mesh.scale.setScalar(1.0);
+        obj.mesh.traverse(child => {
+          if (child.isMesh && child.material && child.material.emissive) {
+            child.material.emissiveIntensity = 0.45;
+          }
+        });
+      });
+      pathwayTubes.forEach(t => {
+        t.mesh.material.emissiveIntensity = 0.55;
+      });
+      if (onComplete) onComplete();
+    }
+  }
+  requestAnimationFrame(updateScan);
+}
+
 async function executeAgentQuery(message) {
   const popup = document.getElementById('agentResponsePopup');
   const bodyEl = document.getElementById('agentResponseBody');
@@ -1430,8 +1624,11 @@ async function executeAgentQuery(message) {
   const btnAction = document.getElementById('btnAgentApplyAction');
 
   if (popup) popup.style.display = 'block';
-  if (bodyEl) bodyEl.innerHTML = '<span style="color:var(--royal-blue);">Querying in-process Relate graph database...</span>';
+  if (bodyEl) bodyEl.innerHTML = '<span style="color:var(--royal-blue);">Traversing Relate graph database...</span>';
   if (footerEl) footerEl.style.display = 'none';
+
+  // Trigger 3D Graph Scan Wave
+  triggerGraphScanWave();
 
   try {
     const res = await fetch('/api/agent', {
@@ -1467,7 +1664,7 @@ async function executeAgentQuery(message) {
 
     // Highlight matching nodes in 3D
     if (data.highlight_nodes && data.highlight_nodes.length > 0) {
-      const firstTitle = data.highlight_nodes[0].replace(/^(med_|ing_|cond_|sym_)/, '');
+      const firstTitle = data.highlight_nodes[0].replace(/^(med_|ing_|cond_|sym_|food_)/, '');
       focusOnNode(firstTitle);
     }
 

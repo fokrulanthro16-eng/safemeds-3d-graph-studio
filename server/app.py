@@ -318,14 +318,29 @@ def analyze(req: AnalyzeRequest):
             food_rows = [dict(r) for r in cur]
             queries_executed.append({"name": "Food-Drug Interactions", "query": q_food, "params": {"meds": meds, "foods": foods}})
             for r in food_rows:
-                severity_type = "conflict" if r["severity"] in ["High", "Severe"] else "spacing"
-                warnings.append({
-                    "type": "Food-Drug Conflict" if severity_type == "conflict" else "Timing Spacing Required",
-                    "severity": r["severity"],
-                    "title": f"{r['med']} Conflict with {r['food']}",
-                    "details": f"{r['mechanism']}. Mandatory minimum spacing: {r['min_gap_hours']} hours."
-                })
-                add_edge(f"ing_{r['ing']}", f"food_{r['food']}", "BINDS_OR_CONFLICTS_WITH", f"{r['min_gap_hours']}h Gap", severity_type, r["mechanism"])
+                is_avoid = (r["ing"] == "Atorvastatin" and "Grapefruit" in r["food"]) or \
+                           (r["ing"] == "Warfarin" and "Spinach" in r["food"]) or \
+                           r["min_gap_hours"] == 0 or r["severity"] == "Severe"
+
+                if is_avoid:
+                    mech_text = r["mechanism"]
+                    if "Avoid combination" not in mech_text:
+                        mech_text = f"{mech_text}. Avoid combination or consult your prescriber."
+                    warnings.append({
+                        "type": "Severe Dietary Hazard (Avoid)",
+                        "severity": "Severe",
+                        "title": f"Dietary Hazard: {r['med']} + {r['food']}",
+                        "details": mech_text
+                    })
+                    add_edge(f"ing_{r['ing']}", f"food_{r['food']}", "BINDS_OR_CONFLICTS_WITH", "Avoid Combination", "conflict", r["mechanism"])
+                else:
+                    warnings.append({
+                        "type": "Timing Spacing Required",
+                        "severity": r["severity"],
+                        "title": f"Timing Spacing: {r['med']} with {r['food']}",
+                        "details": f"{r['mechanism']}. Mandatory minimum spacing: {r['min_gap_hours']} hours."
+                    })
+                    add_edge(f"ing_{r['ing']}", f"food_{r['food']}", "BINDS_OR_CONFLICTS_WITH", f"{r['min_gap_hours']}h Gap", "spacing", r["mechanism"])
 
         # F. CONDITION CONTRAINDICATIONS
         if meds and conditions:
@@ -599,16 +614,24 @@ def agent_query(req: AgentRequest):
             elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
             if sym_rows:
                 c = sym_rows[0]
-                answer = (
-                    f"Adverse Symptom Linked: **{c['symptom']}** is a known {c['frequency']} adverse effect of **{c['medicine']}** (active ingredient: *{c['ingredient']}*). "
-                    f"Pharmacological mechanism: {c['mechanism']}."
-                )
-                if "Atorvastatin" in meds and "Grapefruit Juice" in foods and "Muscle" in target_sym:
-                    answer += " ⚠️ CRITICAL: Concomitant Grapefruit Juice inhibits CYP3A4, multiplying systemic Atorvastatin blood concentrations and dramatically spiking rhabdomyolysis muscle damage risk!"
+                highlight_list = [f"med_{c['medicine']}", f"ing_{c['ingredient']}", f"sym_{c['symptom']}"]
+                has_grapefruit = any("Grapefruit" in f for f in foods)
+
+                if "Atorvastatin" in meds and has_grapefruit and "Muscle" in target_sym:
+                    answer = (
+                        f"Adverse Symptom Pinpointed: **{c['symptom']}** is directly caused by **{c['medicine']}** (active ingredient: *{c['ingredient']}*). "
+                        f"⚠️ CRITICAL DIETARY COLLISION: Concomitant **Grapefruit Juice** irreversibly inhibits intestinal CYP3A4, multiplying systemic Atorvastatin blood concentrations up to 400% and drastically spiking rhabdomyolysis muscle breakdown hazard! Avoid this combination or consult your prescriber."
+                    )
+                    highlight_list.append("food_Grapefruit Juice")
+                else:
+                    answer = (
+                        f"Adverse Symptom Linked: **{c['symptom']}** is a known {c['frequency']} adverse effect of **{c['medicine']}** (active ingredient: *{c['ingredient']}*). "
+                        f"Pharmacological mechanism: {c['mechanism']}."
+                    )
                 return {
                     "answer": answer,
                     "cypher": q_sym.strip(),
-                    "highlight_nodes": [f"med_{c['medicine']}", f"ing_{c['ingredient']}", f"sym_{c['symptom']}"],
+                    "highlight_nodes": highlight_list,
                     "swap_action": None,
                     "elapsed_ms": elapsed_ms
                 }

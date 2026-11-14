@@ -62,7 +62,7 @@ html, body {
   width: 100vw;
   overflow: hidden;
   font-family: var(--font-body);
-  background-color: var(--ice-blue-bg);
+  background: radial-gradient(circle at 50% 35%, #38BDF8 0%, #0284C7 45%, #0B3D91 100%);
   color: var(--text-body);
   font-size: 14px;
   line-height: 1.45;
@@ -70,19 +70,62 @@ html, body {
 }
 
 /* ==========================================================================
-   TOP HEADER BAR: ROYAL-TO-SKY BLUE GRADIENT
+   FULL-VIEWPORT 3D CANVAS & OVERLAYS
+   ========================================================================== */
+.three-canvas-fullscreen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  z-index: 0;
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.three-canvas-fullscreen:active {
+  cursor: grabbing;
+}
+
+.labels-projection-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 5;
+}
+
+.studio-chrome {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 12px;
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   FLOATING TOP HEADER BAR: TRANSLUCENT FROSTED GLASS
    ========================================================================== */
 .top-nav {
-  height: 64px;
-  background: linear-gradient(90deg, #0B3D91 0%, #0284C7 55%, #38BDF8 100%);
+  height: 58px;
+  background: rgba(255, 255, 255, 0.74);
+  backdrop-filter: blur(22px) saturate(165%);
+  -webkit-backdrop-filter: blur(22px) saturate(165%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 18px;
+  box-shadow: 0 12px 36px rgba(11, 61, 145, 0.14);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
+  padding: 0 18px;
   gap: 16px;
-  box-shadow: 0 4px 18px rgba(11, 61, 145, 0.18);
   position: relative;
   z-index: 50;
+  pointer-events: auto;
   flex-shrink: 0;
 }
 
@@ -93,15 +136,15 @@ html, body {
 }
 
 .brand-capsule-icon {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(2, 132, 199, 0.12);
+  border: 1px solid rgba(2, 132, 199, 0.25);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(11, 61, 145, 0.12);
   transform: rotate(-35deg);
 }
 
@@ -109,7 +152,7 @@ html, body {
   flex: 1;
   width: 100%;
 }
-.capsule-half.blue { background: #38BDF8; }
+.capsule-half.blue { background: #0284C7; }
 .capsule-half.white { background: #FFFFFF; }
 
 .brand-title-wrap {
@@ -120,9 +163,9 @@ html, body {
 
 .brand-title {
   font-family: var(--font-heading);
-  font-size: 1.25rem;
+  font-size: 1.18rem;
   font-weight: 800;
-  color: #FFFFFF;
+  color: #0F172A;
   letter-spacing: -0.02em;
 }
 
@@ -138,9 +181,9 @@ html, body {
 }
 
 .brand-tagline {
-  font-size: 0.72rem;
-  color: rgba(255, 255, 255, 0.85);
-  font-weight: 500;
+  font-size: 0.70rem;
+  color: #475569;
+  font-weight: 600;
 }
 
 /* 4 CLINICAL PRESET BUTTONS */
@@ -152,9 +195,9 @@ html, body {
 
 .strip-label {
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.9);
+  color: #0B3D91;
   letter-spacing: 0.04em;
 }
 
@@ -165,24 +208,25 @@ html, body {
 }
 
 .preset-pill {
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  color: #FFFFFF;
+  background: rgba(2, 132, 199, 0.08);
+  border: 1px solid rgba(2, 132, 199, 0.2);
+  color: #0B3D91;
   font-family: var(--font-heading);
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 6px 13px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 6px 12px;
   border-radius: 20px;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 6px;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 6px rgba(11, 61, 145, 0.04);
 }
 
 .preset-pill:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(2, 132, 199, 0.18);
+  border-color: #0284C7;
   transform: translateY(-1px);
 }
 
@@ -250,28 +294,48 @@ html, body {
 }
 
 /* ==========================================================================
-   MAIN STUDIO LAYOUT (3 PANES, 100VH)
+   FLOATING PANELS & OPEN 3D CORRIDOR
    ========================================================================== */
-.studio-layout {
-  display: grid;
-  grid-template-columns: 310px 1fr 390px;
-  height: calc(100vh - 64px);
-  overflow: hidden;
-  background: var(--ice-blue-bg);
-  padding: 10px;
-  gap: 10px;
+.panels-stage-container {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  min-height: 0;
+  pointer-events: none;
+  gap: 14px;
+  position: relative;
 }
 
 .side-panel {
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(22px) saturate(160%);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 16px;
-  box-shadow: 0 10px 28px rgba(11, 61, 145, 0.08);
+  background: rgba(255, 255, 255, 0.74);
+  backdrop-filter: blur(22px) saturate(165%);
+  -webkit-backdrop-filter: blur(22px) saturate(165%);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 18px;
+  box-shadow: 0 12px 36px rgba(11, 61, 145, 0.14);
   overflow: hidden;
+  pointer-events: auto;
+  height: 100%;
+}
+
+.panel-left {
+  width: 310px;
+  flex-shrink: 0;
+}
+
+.panel-right {
+  width: 390px;
+  flex-shrink: 0;
+}
+
+.open-stage-corridor {
+  flex: 1;
+  position: relative;
+  pointer-events: none;
+  min-width: 0;
+  height: 100%;
 }
 
 .panel-top-bar {
@@ -597,48 +661,26 @@ html, body {
 }
 
 /* ==========================================================================
-   CENTER VIEWPORT: STUDIO-GRADE THREE.JS 3D STAGE
+   OPEN STAGE CORRIDOR & 3D OVERLAYS
    ========================================================================== */
-.center-stage {
-  position: relative;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: var(--card-shadow);
-  display: flex;
-  flex-direction: column;
-  background: radial-gradient(circle at 50% 40%, #38BDF8 0%, #0284C7 48%, #0B3D91 100%);
-}
-
-.three-canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-  cursor: grab;
-}
-
-.three-canvas:active {
-  cursor: grabbing;
-}
-
-/* 4-LANE 3D STAGE HEADER OVERLAY */
 .stage-lanes-header {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
+  top: 2px;
+  left: 10px;
+  right: 10px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  gap: 10px;
   pointer-events: none;
   z-index: 15;
 }
 
 .lane-col-label {
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.9);
-  padding: 5px 8px;
+  padding: 4px 8px;
   border-radius: 20px;
   text-align: center;
   font-family: var(--font-heading);
@@ -665,7 +707,7 @@ html, body {
 }
 
 .lane-col-label.safe-lane {
-  background: rgba(236, 253, 245, 0.92);
+  background: rgba(236, 253, 245, 0.90);
   border-color: #A7F3D0;
   color: #065F46;
 }
@@ -675,44 +717,44 @@ html, body {
 
 /* 2D PROJECTED LABELS LAYER */
 .labels-projection-layer {
-  position: absolute;
+  position: fixed;
   inset: 0;
   pointer-events: none;
   overflow: hidden;
-  z-index: 20;
+  z-index: 5;
 }
 
 .node-projected-label {
   position: absolute;
   transform: translate(-50%, 0);
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border: 1px solid rgba(255, 255, 255, 0.95);
-  border-radius: 10px;
-  padding: 5px 9px;
-  box-shadow: 0 6px 18px rgba(11, 61, 145, 0.18);
+  border-radius: 8px;
+  padding: 3px 8px;
+  box-shadow: 0 4px 14px rgba(11, 61, 145, 0.16);
   pointer-events: auto;
   cursor: pointer;
   text-align: center;
-  min-width: 100px;
-  max-width: 150px;
+  min-width: 85px;
+  max-width: 135px;
   transition: transform 0.15s, box-shadow 0.15s;
   user-select: none;
 }
 
 .node-projected-label:hover {
-  transform: translate(-50%, -3px) scale(1.05);
-  box-shadow: 0 10px 24px rgba(11, 61, 145, 0.28);
+  transform: translate(-50%, -2px) scale(1.05);
+  box-shadow: 0 8px 22px rgba(11, 61, 145, 0.28);
 }
 
 .label-category-tag {
-  font-size: 0.58rem;
+  font-size: 0.55rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   display: block;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 
 .tag-med { color: #0284C7; }
@@ -723,10 +765,10 @@ html, body {
 
 .label-title-text {
   font-family: var(--font-heading);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: #0F172A;
-  line-height: 1.2;
+  line-height: 1.15;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

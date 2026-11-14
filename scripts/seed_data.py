@@ -246,7 +246,7 @@ def seed_database(db_path: str):
             "requires_enz": ["CYP3A4"],
             "inhibits_enz": [],
             "stresses": [("Liver", 2, "Transaminase elevation"), ("Kidney", 1, "Myoglobinuria stress during rhabdomyolysis")],
-            "symptoms": [("Muscle Pain / Myopathy", "Common", "Mitochondrial coenzyme Q10 depletion and myotoxicity"), ("Fatigue / Lethargy", "Occasional", "Cellular energy deficit"), ("Headache", "Occasional", "Mild cranial vascular effect")],
+            "symptoms": [("Muscle Pain / Myopathy", "Common (sharply amplified by CYP3A4 inhibitors like Grapefruit Juice)", "Statins can cause muscle pain/myopathy, especially when combined with Grapefruit Juice."), ("Fatigue / Lethargy", "Occasional", "Cellular energy deficit"), ("Headache", "Occasional", "Mild cranial vascular effect")],
             "contraindicated": [("Liver Impairment", "Severe", "Active liver disease is absolute contraindication")]
         },
         {
@@ -417,8 +417,8 @@ def seed_database(db_path: str):
         ("Ciprofloxacin", "Milk / Dairy", 3, "High", "Polyvalent Ca2+ cations chelate fluoroquinolones, cutting GI absorption by up to 85%"),
         ("Ciprofloxacin", "Calcium Supplements / Antacids", 3, "High", "Calcium carbonate severely chelates ciprofloxacin molecules, eliminating antibiotic efficacy"),
         ("Ciprofloxacin", "Coffee / Caffeine", 2, "Moderate", "Ciprofloxacin inhibits CYP1A2, elevating serum caffeine levels up to 300% causing tachycardia"),
-        ("Atorvastatin", "Grapefruit Juice", 4, "High", "Intestinal CYP3A4 inhibition increases statin AUC by 250-400%, precipitating rhabdomyolysis and severe myopathy"),
-        ("Warfarin", "Spinach / Leafy Greens", 4, "High", "High dietary Vitamin K1 directly circumvents vitamin K epoxide reductase inhibition, crashing INR and increasing stroke/clot risk"),
+        ("Atorvastatin", "Grapefruit Juice", 0, "Severe", "Intestinal CYP3A4 inhibition increases statin AUC by 250-400%, precipitating rhabdomyolysis and severe myopathy. Avoid combination or consult your prescriber."),
+        ("Warfarin", "Spinach / Leafy Greens", 0, "Severe", "High dietary Vitamin K1 directly circumvents vitamin K epoxide reductase inhibition, crashing INR and increasing stroke/clot risk. Avoid combination or consult your prescriber."),
         ("Warfarin", "Alcohol", 4, "High", "Acute ingestion competitively inhibits warfarin breakdown (raising INR and bleed risk); chronic use induces metabolism (lowering INR)"),
         ("Metformin", "Alcohol", 4, "Severe", "Ethanol inhibits hepatic lactate utilization, drastically precipitating fatal lactic acidosis"),
         ("Lisinopril", "Alcohol", 2, "Moderate", "Synergistic vasodilatory hypotension triggering orthostatic syncope"),
