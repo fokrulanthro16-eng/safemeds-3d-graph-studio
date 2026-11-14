@@ -648,7 +648,7 @@ function renderThreeStage(data) {
 
   // All clear notice
   if (col3Items.length === 0 && col4Alts.length === 0 && col1Nodes.length > 0) {
-    if (notice) notice.style.display = 'block';
+    if (notice) notice.style.display = 'flex';
   } else {
     if (notice) notice.style.display = 'none';
   }
@@ -1185,26 +1185,41 @@ function updateKeyActionBanner(data) {
   const actionText = document.getElementById('keyActionText');
   if (!banner || !actionText) return;
 
-  if (activePresetId === 'preset_1' || (selectedMedicines.has('Clopidogrel') && selectedMedicines.has('Omeprazole'))) {
+  const totalConflicts = (data.warnings ? data.warnings.length : 0) + (data.brand_overlaps ? data.brand_overlaps.length : 0);
+
+  // When zero conflicts exist (e.g. after Apply Safe Swap), hide the Priority Action banner completely
+  if (totalConflicts === 0) {
+    banner.style.display = 'none';
+    return;
+  }
+
+  // Display relevant priority clinical action when at least 1 active conflict exists
+  if (selectedMedicines.has('Clopidogrel') && selectedMedicines.has('Omeprazole')) {
     actionText.textContent = "KEY ACTION: Swap Omeprazole for Famotidine or Pantoprazole to prevent CYP2C19 block and restore Clopidogrel's antiplatelet heart protection.";
     banner.style.display = 'block';
     return;
   }
 
-  if (activePresetId === 'preset_2' || (selectedMedicines.has('Ciprofloxacin') && selectedFoods.has('Milk / Dairy'))) {
+  if (selectedMedicines.has('Ciprofloxacin') && selectedFoods.has('Milk / Dairy')) {
     actionText.textContent = "KEY ACTION: Keep a mandatory 3-hour gap between Ciprofloxacin and Dairy/Calcium to avoid insoluble chelation and 85% antibiotic failure.";
     banner.style.display = 'block';
     return;
   }
 
-  if (activePresetId === 'preset_3' || (selectedMedicines.has('Advil') && selectedMedicines.has('Aleve'))) {
+  if (selectedMedicines.has('Advil') && selectedMedicines.has('Aleve')) {
     actionText.textContent = "KEY ACTION: Discontinue dual NSAIDs (Advil + Aleve) immediately; additive COX-1/2 inhibition causes acute kidney injury and GI bleeding.";
     banner.style.display = 'block';
     return;
   }
 
-  if (activePresetId === 'preset_4' || (selectedMedicines.has('Atorvastatin') && selectedFoods.has('Grapefruit Juice'))) {
+  if (selectedMedicines.has('Atorvastatin') && selectedFoods.has('Grapefruit Juice')) {
     actionText.textContent = "KEY ACTION: Avoid Grapefruit Juice completely (inhibits CYP3A4, causing toxic statin accumulation and acute rhabdomyolysis muscle damage).";
+    banner.style.display = 'block';
+    return;
+  }
+
+  if (data.brand_overlaps && data.brand_overlaps.length > 0) {
+    actionText.textContent = `KEY ACTION: ${data.brand_overlaps[0].warning.substring(0, 120)}...`;
     banner.style.display = 'block';
     return;
   }
@@ -1212,10 +1227,10 @@ function updateKeyActionBanner(data) {
   if (data.warnings && data.warnings.length > 0) {
     actionText.textContent = `KEY ACTION: ${data.warnings[0].title} — ${data.warnings[0].details.substring(0, 110)}...`;
     banner.style.display = 'block';
-  } else {
-    actionText.textContent = "KEY ACTION: Regimen Safe & Clear — No critical metabolic collisions or timing gaps detected.";
-    banner.style.display = 'block';
+    return;
   }
+
+  banner.style.display = 'none';
 }
 
 // ==========================================================================
