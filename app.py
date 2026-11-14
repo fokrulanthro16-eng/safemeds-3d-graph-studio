@@ -8,6 +8,8 @@ at `/`, `/api/*`, and `/static/*`.
 import os
 import sys
 import inspect
+import subprocess
+import traceback
 from pathlib import Path
 
 # Ensure repository root is on sys.path
@@ -15,16 +17,39 @@ ROOT_DIR = Path(__file__).resolve().parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-# 1. STRICT IMPORT ORDER: spaces first, then gradio, then server.app
+# 1. STRICT IMPORT ORDER WITH SELF-HEALING BOOTSTRAP: spaces first, then gradio
+spaces = None
+gr = None
+
 try:
     import spaces
-except ImportError:
-    spaces = None
+except Exception:
+    print("[SafeMeds] Initial import of 'spaces' failed:", flush=True)
+    traceback.print_exc()
 
 try:
     import gradio as gr
-except ImportError:
-    gr = None
+except Exception:
+    print("[SafeMeds] Initial import of 'gradio' failed:", flush=True)
+    traceback.print_exc()
+
+# If running inside Hugging Face Space (SPACE_ID is set) and either spaces or gradio is missing,
+# automatically install them into the active interpreter and re-import
+if (spaces is None or gr is None) and os.environ.get("SPACE_ID"):
+    print("[SafeMeds] Hugging Face Space runtime detected with missing packages. Bootstrapping spaces + gradio...", flush=True)
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir", "spaces", "gradio"])
+        try:
+            import spaces
+        except Exception:
+            traceback.print_exc()
+        try:
+            import gradio as gr
+        except Exception:
+            traceback.print_exc()
+    except Exception as e:
+        print(f"[SafeMeds] Self-healing bootstrap error: {e}", flush=True)
+        traceback.print_exc()
 
 print(f"[SafeMeds] Runtime check -> spaces={spaces is not None}, gradio={gr is not None}", flush=True)
 

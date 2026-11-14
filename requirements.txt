@@ -1,6 +1,7 @@
-relate-db>=1.0.1
-fastapi>=0.110.0
-uvicorn>=0.28.0
-pydantic>=2.0.0
-requests>=2.31.0
+relate-db
+fastapi
+uvicorn
+pydantic
+requests
+spaces>=0.30.0
 gradio>=5.0.0,<6.0.0
