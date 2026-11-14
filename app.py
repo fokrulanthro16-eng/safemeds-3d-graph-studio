@@ -13,6 +13,17 @@ ROOT_DIR = Path(__file__).resolve().parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+# Hugging Face ZeroGPU runtime hook: registers a @spaces.GPU function during startup
+try:
+    import spaces
+except ImportError:
+    spaces = None
+
+if spaces is not None:
+    @spaces.GPU
+    def safemeds_zerogpu_probe():
+        return "SafeMeds 3D Graph Studio Ready"
+
 # Import the ASGI application from server.app
 from server.app import app
 
