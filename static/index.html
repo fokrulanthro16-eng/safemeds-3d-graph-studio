@@ -3,254 +3,330 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SafeMeds | Relate by Neo4j Hackathon</title>
+  <title>SafeMeds | Clinical Medication & Food Safety Graph</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
-  <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
-  <!-- TOP BAR -->
+  <!-- TOP BAR (BRIGHTLIFE CLINICAL HEADER) -->
   <header class="top-bar">
     <div class="brand">
-      <div class="logo-icon">💊</div>
+      <div class="brand-badge">
+        <svg class="shield-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+      </div>
       <div>
-        <h1 class="logo-title">SafeMeds <span class="tagline">Context, Connected</span></h1>
-        <p class="subtitle">Offline-First Medication, Food & Health Graph Engine</p>
+        <div class="brand-title-row">
+          <h1 class="brand-name">SafeMeds</h1>
+          <span class="system-tag">BrightLife Medical System</span>
+        </div>
+        <p class="brand-subtitle">Connected Pharmacological Safety Graph · Zero-Cloud Local Relate Engine</p>
       </div>
     </div>
 
-    <!-- PRESET SCENARIO BUTTONS -->
-    <div class="preset-group">
-      <span class="preset-label">One-Click Presets:</span>
-      <button class="preset-btn" onclick="loadPreset('preset_1')">
-        <span class="icon">💔</span> Heart + Gastric Block
-      </button>
-      <button class="preset-btn" onclick="loadPreset('preset_2')">
-        <span class="icon">🥛</span> Antibiotic + Dairy
-      </button>
-      <button class="preset-btn" onclick="loadPreset('preset_3')">
-        <span class="icon">🩸</span> BP + Double NSAID + Trace
-      </button>
-      <button class="preset-btn" onclick="loadPreset('preset_4')">
-        <span class="icon">🍊</span> Statin + Warfarin + Diet
-      </button>
+    <!-- 4 ONE-CLICK PRESET BUTTONS -->
+    <div class="preset-container">
+      <span class="preset-label">Clinical Presets:</span>
+      <div class="preset-buttons">
+        <button class="preset-btn" onclick="loadPreset('preset_1')">
+          <span class="p-dot red"></span> Heart + Gastric Block
+        </button>
+        <button class="preset-btn" onclick="loadPreset('preset_2')">
+          <span class="p-dot amber"></span> Antibiotic + Dairy
+        </button>
+        <button class="preset-btn" onclick="loadPreset('preset_3')">
+          <span class="p-dot red"></span> BP + Double NSAID
+        </button>
+        <button class="preset-btn" onclick="loadPreset('preset_4')">
+          <span class="p-dot amber"></span> Statin + Diet Clash
+        </button>
+      </div>
     </div>
 
     <!-- PERSISTENT RELATE STORE BADGE -->
-    <div class="db-badge" id="dbBadge" title="Relate Embedded In-Process Database">
-      <span class="pulse-dot"></span>
-      <div class="badge-text">
-        <span class="db-mode">Relate: Single File</span>
-        <span class="db-path" id="dbPathDisplay">./data/safemeds.rl</span>
+    <div class="store-badge" title="Relate by Neo4j In-Process Single-File Database">
+      <span class="pulse-indicator"></span>
+      <div class="badge-content">
+        <span class="engine-title">Relate Single-File Store</span>
+        <span class="store-path" id="dbPathDisplay">./data/safemeds.rl</span>
       </div>
     </div>
   </header>
 
-  <!-- MAIN 3-COLUMN LAYOUT -->
-  <main class="main-layout">
-    
-    <!-- LEFT COLUMN: SELECTION & REVERSE SYMPTOM TRACER -->
-    <section class="col col-left">
-      <div class="col-header">
-        <h2>Patient Profile</h2>
-        <button class="btn-clear" onclick="clearAllSelections()" title="Reset All">Clear</button>
+  <!-- MAIN 3-COLUMN DASHBOARD (100VH SINGLE VIEWPORT) -->
+  <main class="dashboard-grid">
+
+    <!-- LEFT COLUMN: PATIENT REGIMEN BUILDER & SYMPTOM TRACER -->
+    <section class="panel panel-left">
+      <div class="panel-header">
+        <div class="panel-title-group">
+          <h2>Patient Profile</h2>
+          <span class="panel-sub">Active Regimen & Tracing</span>
+        </div>
+        <button class="btn-clear-all" onclick="clearAllSelections()" title="Reset All Selections">Clear All</button>
       </div>
 
-      <!-- REVERSE SYMPTOM TRACER BOX -->
-      <div class="symptom-tracer-card">
-        <div class="card-header">
-          <span class="tracer-icon">🔍</span>
-          <h3>Reverse Symptom Tracer</h3>
-        </div>
-        <p class="card-hint">"Why am I feeling this?" Traverses backward through the graph to pinpoint culprit medicines.</p>
-        <div class="tracer-control">
-          <select id="symptomSelect" class="form-select">
-            <option value="">-- Choose a symptom to trace --</option>
-          </select>
-          <button class="btn-trace" onclick="traceSymptom()">Trace</button>
-        </div>
-        <div id="traceResult" class="trace-result-box" style="display: none;"></div>
-      </div>
+      <div class="panel-content">
+        
+        <!-- AUTOCOMPLETE SELECTORS (NO CLUTTERED LISTS) -->
+        <div class="regimen-selector-box">
+          <label class="control-label">Add to Patient Regimen</label>
+          
+          <!-- MEDICINE PICKER -->
+          <div class="dropdown-wrapper">
+            <input type="text" id="medSearchInput" class="select-search-input" placeholder="+ Add Medication (Brand or Generic)..." autocomplete="off">
+            <div id="medDropdown" class="autocomplete-dropdown" style="display: none;"></div>
+          </div>
 
-      <!-- MEDICINE SELECTOR -->
-      <div class="selector-card">
-        <div class="card-header">
-          <h3>Daily Medications</h3>
-          <span class="badge-counter" id="medCounter">0 selected</span>
-        </div>
-        <input type="text" id="medSearch" class="form-input search-input" placeholder="Search 40+ brand & generic medicines...">
-        <div class="pill-container" id="medList">
-          <div class="loading-spinner">Loading catalog...</div>
-        </div>
-      </div>
+          <!-- FOOD & SUPPLEMENT PICKER -->
+          <div class="dropdown-wrapper">
+            <select id="foodSelectPicker" class="custom-select" onchange="handleAddFood(this.value)">
+              <option value="">+ Add Dietary Intake / Supplement...</option>
+            </select>
+          </div>
 
-      <!-- FOOD & DIET SELECTOR -->
-      <div class="selector-card">
-        <div class="card-header">
-          <h3>Dietary & Food Intake</h3>
-          <span class="badge-counter" id="foodCounter">0 selected</span>
+          <!-- CONDITION PICKER -->
+          <div class="dropdown-wrapper">
+            <select id="condSelectPicker" class="custom-select" onchange="handleAddCondition(this.value)">
+              <option value="">+ Add Chronic Health Condition...</option>
+            </select>
+          </div>
         </div>
-        <div class="pill-container" id="foodList"></div>
-      </div>
 
-      <!-- CONDITIONS SELECTOR -->
-      <div class="selector-card">
-        <div class="card-header">
-          <h3>Chronic Conditions</h3>
-          <span class="badge-counter" id="condCounter">0 selected</span>
+        <!-- ACTIVE SELECTED ITEMS CHIPS -->
+        <div class="active-items-card">
+          <div class="active-items-header">
+            <span class="active-title">Active Regimen Items</span>
+            <span class="active-count-badge" id="activeItemsCount">0 items</span>
+          </div>
+          
+          <div id="selectedChipsContainer" class="chips-container">
+            <div class="empty-chips-hint">
+              <span>No items selected. Type to add medications or select a preset above.</span>
+            </div>
+          </div>
         </div>
-        <div class="pill-container" id="condList"></div>
-      </div>
-    </section>
 
-    <!-- CENTER COLUMN: FOCUSED SUBGRAPH VIEW -->
-    <section class="col col-center">
-      <div class="col-header">
-        <div>
-          <h2>Focused Relationship Graph</h2>
-          <span class="subgraph-sub">Renders strictly the active items & connecting pathways (no hairballs)</span>
-        </div>
-        <div class="graph-actions">
-          <button class="btn-tool" onclick="resetGraphZoom()" title="Reset Zoom">Fit</button>
-        </div>
-      </div>
+        <!-- REVERSE SYMPTOM TRACER -->
+        <div class="tracer-card">
+          <div class="tracer-header">
+            <div class="tracer-title-row">
+              <span class="tracer-icon">🩺</span>
+              <div>
+                <h3 class="tracer-title">Reverse Symptom Tracer</h3>
+                <span class="tracer-desc">"Why am I feeling this?"</span>
+              </div>
+            </div>
+          </div>
+          <p class="tracer-prompt">Traverses backwards along <code>(:Symptom)&larr;[:CAN_CAUSE]&ndash;(:Ingredient)&larr;[:CONTAINS]&ndash;(:Medicine)</code> to find which active drug is causing your symptom.</p>
+          
+          <div class="tracer-controls">
+            <select id="symptomSelect" class="custom-select symptom-select">
+              <option value="">-- Choose Adverse Symptom --</option>
+            </select>
+            <button class="btn-run-trace" onclick="traceSymptom()">Trace Cause</button>
+          </div>
 
-      <!-- GRAPH CANVAS CONTAINER -->
-      <div class="graph-wrapper" id="graphWrapper">
-        <svg id="graphSvg"></svg>
-        <div id="graphTooltip" class="graph-tooltip" style="display: none;"></div>
-        <div id="emptyGraphState" class="empty-state">
-          <div class="empty-icon">🕸️</div>
-          <h3>Select medications or pick a preset above</h3>
-          <p>Relate will traverse 3–4 hop paths in real time and render the connected subgraph here.</p>
+          <div id="traceResultBox" class="trace-output-card" style="display: none;"></div>
         </div>
-      </div>
 
-      <!-- GRAPH LEGEND -->
-      <div class="graph-legend">
-        <span class="legend-item"><span class="dot med-dot"></span> Medicine</span>
-        <span class="legend-item"><span class="dot ing-dot"></span> Ingredient</span>
-        <span class="legend-item"><span class="dot enz-dot"></span> CYP Enzyme</span>
-        <span class="legend-item"><span class="dot food-dot"></span> Food</span>
-        <span class="legend-item"><span class="dot cond-dot"></span> Condition</span>
-        <span class="legend-item"><span class="dot org-dot"></span> Organ</span>
-        <span class="legend-item"><span class="edge-line conflict-line"></span> Conflict / Block</span>
-        <span class="legend-item"><span class="edge-line spacing-line"></span> Time-Spacing (Gap)</span>
-        <span class="legend-item"><span class="edge-line alt-line"></span> Safe Alternative</span>
       </div>
     </section>
 
-    <!-- RIGHT COLUMN: CLINICAL ANALYSIS, SCHEDULE & LIVE CYPHER -->
-    <section class="col col-right">
+    <!-- CENTER COLUMN: CLEAN LEFT-TO-RIGHT PATHWAY DIAGRAM -->
+    <section class="panel panel-center">
+      <div class="panel-header">
+        <div class="panel-title-group">
+          <h2>Pharmacological Pathway Diagram</h2>
+          <span class="panel-sub">Left-to-Right Structured Flow (No Circular Hairballs)</span>
+        </div>
+        <div class="pathway-legend">
+          <span class="leg-pill pill-intake">1. Intake</span>
+          <span class="leg-arrow">&rarr;</span>
+          <span class="leg-pill pill-ing">2. Ingredient</span>
+          <span class="leg-arrow">&rarr;</span>
+          <span class="leg-pill pill-alert">3. Conflict Point</span>
+          <span class="leg-arrow">&rarr;</span>
+          <span class="leg-pill pill-safe">4. Safe Alternative</span>
+        </div>
+      </div>
+
+      <div class="pathway-canvas-container" id="pathwayCanvas">
+        <!-- SVG CONNECTOR PATHS LAYER -->
+        <svg id="pathwaySvg" class="pathway-svg-layer"></svg>
+
+        <!-- 4 CLEAN VERTICAL COLUMNS -->
+        <div class="pathway-columns-grid">
+          
+          <!-- COL 1: ACTIVE INTAKE -->
+          <div class="pathway-col" id="colIntake">
+            <div class="col-badge intake-badge">Active Intake</div>
+            <div class="cards-stack" id="stackIntake"></div>
+          </div>
+
+          <!-- COL 2: INGREDIENTS -->
+          <div class="pathway-col" id="colIngredients">
+            <div class="col-badge ing-badge">Active Ingredients</div>
+            <div class="cards-stack" id="stackIngredients"></div>
+          </div>
+
+          <!-- COL 3: CONFLICT / ENZYME POINT -->
+          <div class="pathway-col" id="colConflicts">
+            <div class="col-badge conflict-badge">Pathway Conflict Point</div>
+            <div class="cards-stack" id="stackConflicts"></div>
+          </div>
+
+          <!-- COL 4: SAFE ALTERNATIVES -->
+          <div class="pathway-col" id="colAlternatives">
+            <div class="col-badge safe-badge">Safe Alternatives</div>
+            <div class="cards-stack" id="stackAlternatives"></div>
+          </div>
+
+        </div>
+
+        <!-- EMPTY STATE MESSAGE -->
+        <div id="pathwayEmptyState" class="pathway-empty-card" style="display: none;">
+          <div class="empty-icon">🌱</div>
+          <h3>Select patient medications or choose a clinical preset</h3>
+          <p>Relate will traverse the multi-hop Cypher pathways in real time and render a structured left-to-right flow chart.</p>
+        </div>
+
+        <!-- ALL CLEAR STATE -->
+        <div id="pathwaySafeState" class="pathway-safe-card" style="display: none;">
+          <div class="safe-icon">✅</div>
+          <h3>All Clear · No Pathway Collisions Detected</h3>
+          <p>No enzyme blocks, double-dose overlaps, or food chelation conflicts detected among the selected items.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN: RISKS, ROUTINE, ORGAN STRESS & CYPHER REPL -->
+    <section class="panel panel-right">
       
-      <!-- TABS -->
-      <div class="right-tabs">
-        <button class="tab-btn active" onclick="switchRightTab('clinical')">Safety & Alternatives</button>
-        <button class="tab-btn" onclick="switchRightTab('schedule')">5-Slot Routine</button>
-        <button class="tab-btn" onclick="switchRightTab('organ')">Organ Stress</button>
-        <button class="tab-btn" onclick="switchRightTab('cypher')">Live Cypher REPL</button>
-      </div>
+      <!-- 4 EQUAL-WIDTH TABS (ZERO HORIZONTAL SCROLL) -->
+      <nav class="tabs-bar">
+        <button class="tab-item active" onclick="switchTab('clinical')">Risks & Swaps</button>
+        <button class="tab-item" onclick="switchTab('schedule')">Daily Routine</button>
+        <button class="tab-item" onclick="switchTab('organ')">Organ Load</button>
+        <button class="tab-item" onclick="switchTab('cypher')">Cypher</button>
+      </nav>
 
-      <!-- TAB 1: CLINICAL WARNINGS & ALTERNATIVES -->
-      <div id="tabClinical" class="tab-pane active">
-        <!-- DOUBLE DOSE WARNINGS -->
-        <div id="doubleDoseAlerts"></div>
+      <!-- TAB 1: RISKS & ALTERNATIVE SWAPS -->
+      <div id="tabClinical" class="tab-content active">
+        <!-- DOUBLE DOSE OVERLAPS -->
+        <div id="doubleDoseContainer"></div>
 
         <!-- PATHWAY WARNINGS -->
-        <div class="section-box">
-          <h3 class="section-title">Clinical Interaction Warnings</h3>
-          <div id="warningsList" class="cards-list">
-            <p class="placeholder-text">No active conflicts detected. Select medicines or load a preset.</p>
+        <div class="card-group">
+          <div class="card-group-header">
+            <h3 class="card-group-title">Clinical Interaction Warnings</h3>
+            <span class="count-tag" id="warningsCountBadge">0 alerts</span>
+          </div>
+          <div id="warningsListContainer" class="stacked-cards">
+            <div class="empty-tab-text">No active clinical warnings.</div>
           </div>
         </div>
 
         <!-- SAFE ALTERNATIVES -->
-        <div class="section-box">
-          <h3 class="section-title alt-title">Recommended Safe Alternatives</h3>
-          <div id="alternativesList" class="cards-list">
-            <p class="placeholder-text">Alternatives will appear when conflicts or blocked pathways are found.</p>
+        <div class="card-group">
+          <div class="card-group-header">
+            <h3 class="card-group-title safe-title">Recommended Safe Swaps</h3>
+            <span class="count-tag safe-tag" id="altsCountBadge">0 options</span>
+          </div>
+          <div id="altsListContainer" class="stacked-cards">
+            <div class="empty-tab-text">Safe alternatives appear when blocked pathways are detected.</div>
           </div>
         </div>
       </div>
 
-      <!-- TAB 2: SMART 5-SLOT DAILY SCHEDULE -->
-      <div id="tabSchedule" class="tab-pane">
-        <div class="section-box">
-          <h3 class="section-title">Smart Daily Routine</h3>
-          <p class="section-sub">Arranged automatically based on <code>take_with_food</code> and <code>min_gap_hours</code> graph properties.</p>
-          <div id="scheduleTimeline" class="timeline-container">
-            <p class="placeholder-text">Select medications to generate an optimized daily routine.</p>
+      <!-- TAB 2: SMART 5-SLOT DAILY ROUTINE -->
+      <div id="tabSchedule" class="tab-content">
+        <div class="card-group">
+          <div class="card-group-header">
+            <h3 class="card-group-title">5-Slot Medication Schedule</h3>
+            <span class="info-pill">Optimized by Relate</span>
+          </div>
+          <p class="tab-instruction">Arranged automatically using graph properties (<code>take_with_food</code>, <code>min_gap_hours</code>) to ensure proper spacing.</p>
+          <div id="scheduleTimeline" class="routine-timeline">
+            <div class="empty-tab-text">Select medications to generate an optimized daily timetable.</div>
           </div>
         </div>
       </div>
 
       <!-- TAB 3: CUMULATIVE ORGAN LOAD -->
-      <div id="tabOrgan" class="tab-pane">
-        <div class="section-box">
-          <h3 class="section-title">Cumulative Organ Load Calculator</h3>
-          <p class="section-sub">Aggregated <code>load_score</code> across all active ingredients.</p>
-          
-          <div class="organ-meter">
-            <div class="meter-label">
-              <span>🫘 Kidney (Renal Clearance)</span>
-              <span id="scoreKidney" class="score-val">0</span>
+      <div id="tabOrgan" class="tab-content">
+        <div class="card-group">
+          <div class="card-group-header">
+            <h3 class="card-group-title">Cumulative Organ Stress</h3>
+            <span class="info-pill">Aggregated Score</span>
+          </div>
+          <p class="tab-instruction">Sum of physiological <code>load_score</code> properties across all active ingredients.</p>
+
+          <div class="meter-block">
+            <div class="meter-header">
+              <span class="meter-name">🫘 Kidney (Renal Clearance)</span>
+              <span class="meter-score" id="valKidney">0</span>
             </div>
-            <div class="meter-bar-bg"><div id="barKidney" class="meter-bar-fill" style="width: 0%;"></div></div>
+            <div class="meter-track"><div id="barKidney" class="meter-fill" style="width: 0%;"></div></div>
           </div>
 
-          <div class="organ-meter">
-            <div class="meter-label">
-              <span>🩺 Liver (Hepatic Metabolism)</span>
-              <span id="scoreLiver" class="score-val">0</span>
+          <div class="meter-block">
+            <div class="meter-header">
+              <span class="meter-name">🩺 Liver (Hepatic Metabolism)</span>
+              <span class="meter-score" id="valLiver">0</span>
             </div>
-            <div class="meter-bar-bg"><div id="barLiver" class="meter-bar-fill" style="width: 0%;"></div></div>
+            <div class="meter-track"><div id="barLiver" class="meter-fill" style="width: 0%;"></div></div>
           </div>
 
-          <div class="organ-meter">
-            <div class="meter-label">
-              <span>🍽️ Stomach / Gastrointestinal</span>
-              <span id="scoreStomach" class="score-val">0</span>
+          <div class="meter-block">
+            <div class="meter-header">
+              <span class="meter-name">🍽️ Stomach / Gastrointestinal</span>
+              <span class="meter-score" id="valStomach">0</span>
             </div>
-            <div class="meter-bar-bg"><div id="barStomach" class="meter-bar-fill" style="width: 0%;"></div></div>
+            <div class="meter-track"><div id="barStomach" class="meter-fill" style="width: 0%;"></div></div>
           </div>
 
-          <div class="organ-meter">
-            <div class="meter-label">
-              <span>🧠 Brain / Central Nervous System</span>
-              <span id="scoreBrain" class="score-val">0</span>
+          <div class="meter-block">
+            <div class="meter-header">
+              <span class="meter-name">🧠 Brain / Central Nervous System</span>
+              <span class="meter-score" id="valBrain">0</span>
             </div>
-            <div class="meter-bar-bg"><div id="barBrain" class="meter-bar-fill" style="width: 0%;"></div></div>
+            <div class="meter-track"><div id="barBrain" class="meter-fill" style="width: 0%;"></div></div>
           </div>
 
-          <div class="organ-alert-box" id="organSummary">
-            Select medications to calculate total physiological burden.
+          <div id="organAssessmentCard" class="organ-assessment-box">
+            Select medications to calculate cumulative physiological burden.
           </div>
         </div>
       </div>
 
       <!-- TAB 4: LIVE CYPHER QUERY INSPECTOR -->
-      <div id="tabCypher" class="tab-pane">
-        <div class="section-box">
-          <div class="cypher-header">
-            <h3 class="section-title">Live Cypher Inspector</h3>
-            <span class="cypher-mode-badge">Target: ./data/safemeds.rl</span>
+      <div id="tabCypher" class="tab-content">
+        <div class="card-group">
+          <div class="card-group-header">
+            <h3 class="card-group-title">Relate Cypher Inspector</h3>
+            <span class="mono-badge">./data/safemeds.rl</span>
           </div>
-          <p class="section-sub">Inspect queries executed by Relate or run custom Cypher against the persistent store.</p>
+          <p class="tab-instruction">Run custom openCypher queries directly against the in-process persistent Relate database.</p>
 
-          <!-- CUSTOM QUERY REPL -->
-          <div class="repl-box">
-            <textarea id="customCypherInput" class="repl-textarea" rows="4" placeholder="MATCH (m:Medicine)-[:CONTAINS]->(i:Ingredient) RETURN m.name, i.name LIMIT 10;"></textarea>
-            <div class="repl-actions">
-              <button class="btn-execute" onclick="executeCustomCypher()">Run Cypher Query</button>
-              <button class="btn-sample" onclick="loadSampleCypher()">Load Sample</button>
+          <div class="cypher-repl-box">
+            <textarea id="replInput" class="repl-editor" rows="3" placeholder="MATCH (m:Medicine)-[:CONTAINS]->(i:Ingredient) RETURN m.name, i.name LIMIT 8;"></textarea>
+            <div class="repl-btn-row">
+              <button class="btn-run-cypher" onclick="runCustomCypher()">Execute Cypher</button>
+              <button class="btn-sample-cypher" onclick="insertSampleCypher()">Sample Query</button>
             </div>
           </div>
 
-          <!-- REPL OUTPUT -->
-          <div id="replResult" class="repl-result-area" style="display: none;"></div>
+          <div id="replOutputArea" class="repl-output" style="display: none;"></div>
 
-          <!-- RECENT QUERIES LIST -->
-          <h4 class="recent-title">Statements Executed in Last Analysis:</h4>
-          <div id="executedQueriesList" class="executed-queries-list"></div>
+          <div class="recent-queries-section">
+            <span class="recent-label">Executed in Last Analysis:</span>
+            <div id="recentQueriesContainer" class="recent-queries-stack"></div>
+          </div>
         </div>
       </div>
 
