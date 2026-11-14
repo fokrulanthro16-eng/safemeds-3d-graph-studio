@@ -26,6 +26,8 @@ try:
 except ImportError:
     gr = None
 
+print(f"[SafeMeds] Runtime check -> spaces={spaces is not None}, gradio={gr is not None}", flush=True)
+
 import uvicorn
 from server.app import app as safemeds_app
 
